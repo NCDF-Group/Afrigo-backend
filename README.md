@@ -79,21 +79,32 @@ Every module has the same three files: `*.schemas.ts` for input, `*.service.ts` 
 
 Prerequisites: Node.js 20+ and PostgreSQL 17 (`brew install postgresql@17 && brew services start postgresql@17`, or `docker compose up -d`).
 
+First time only:
+
 ```bash
 npm install
-cp .env.example .env
+cp -n .env.example .env
 createdb afrigo
 createdb afrigo_test
+```
+
+Open `.env` and set `JWT_ACCESS_SECRET`, `ENCRYPTION_KEY` and the three `SEED_ADMIN_*` values. Generate each secret separately with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+`DATABASE_URL=postgres://localhost:5432/afrigo` connects as your computer's user, which is how a Homebrew Postgres is set up. With `docker compose` use `postgres://postgres:postgres@localhost:5432/afrigo`.
+
+Then:
+
+```bash
 npm run db:migrate
 npm run db:seed:admin
 npm run dev
 ```
 
-Fill in `DATABASE_URL`, `JWT_ACCESS_SECRET`, `ENCRYPTION_KEY` and the `SEED_ADMIN_*` values first. Generate each secret separately with:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
-```
+Day to day, only `npm run dev` is needed. Run `npm run db:migrate` again after pulling new migrations. `cp -n` never overwrites an existing `.env`; do not copy the example over a working one, or your secrets are replaced with placeholders.
 
 The API runs on http://localhost:4000. Check http://localhost:4000/api/v1/health/ready.
 
