@@ -52,10 +52,18 @@ export async function changeStaffRole(actor: User, id: string, role: StaffRole |
   const [target] = await db.select().from(users).where(and(eq(users.id, id), isNotNull(users.staffRole))).limit(1)
   if (!target) throw notFound('Staff member')
   if (target.id === actor.id) throw conflict('SELF_ACTION', 'You cannot change your own staff access.')
-  if (target.staffRole === 'super_admin' && role !== 'super_admin' && (await superAdminCount()) <= 1) throw conflict('LAST_OWNER', 'Afrigo must keep at least one super administrator.')
+  if (target.staffRole === 'super_admin' && role !== 'super_admin' && (await superAdminCount()) <= 1) throw conflict('LAST_OWNER', 'AfriGoOS must keep at least one super administrator.')
   const [updated] = await db.update(users).set({ staffRole: role }).where(eq(users.id, id)).returning()
   await logoutEverywhere(id)
   return staffView(updated)
+}
+
+export async function resetStaffMfa(actor: User, id: string) {
+  const [target] = await db.select().from(users).where(and(eq(users.id, id), isNotNull(users.staffRole))).limit(1)
+  if (!target) throw notFound('Staff member')
+  if (target.id === actor.id) throw conflict('SELF_ACTION', 'You cannot reset your own two step verification.')
+  await db.update(users).set({ mfaSecret: null, mfaPendingSecret: null, mfaEnabledAt: null, mfaLastStep: null, mfaRecoveryCodes: [] }).where(eq(users.id, id))
+  await logoutEverywhere(id)
 }
 
 export async function listAudit(page: number, pageSize: number, action?: string) {

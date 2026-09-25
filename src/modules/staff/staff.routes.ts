@@ -33,6 +33,13 @@ staffRouter.patch('/:id', requireStaff('staff:manage'), async (request, response
   response.json({ staff: member })
 })
 
+staffRouter.post('/:id/reset-mfa', requireStaff('staff:manage'), async (request, response) => {
+  const { id } = parse(idSchema, request.params)
+  await staff.resetStaffMfa(request.auth!.user, id)
+  await audit({ actorId: request.auth!.user.id, action: 'admin.staff.mfa_reset', targetType: 'user', targetId: id, request })
+  response.status(204).end()
+})
+
 export const auditRouter = Router()
 
 auditRouter.get('/', requireStaff('staff:manage'), async (request, response) => {

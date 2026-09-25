@@ -38,7 +38,7 @@ export function layout({ heading, body, action, footnote }: { heading: string; b
     ? `<p style="margin:28px 0"><a href="${escape(action.url)}" style="background:#025344;color:#ffffff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;display:inline-block">${escape(action.label)}</a></p>`
     : ''
   const note = footnote ? `<p style="color:#6b7280;font-size:13px;line-height:1.6">${escape(footnote)}</p>` : ''
-  const html = `<div style="background:#f6f7f4;padding:32px 16px;font-family:Arial,Helvetica,sans-serif"><div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;border:1px solid #e5e7e1"><p style="color:#7cb041;font-weight:700;letter-spacing:.08em;font-size:12px;margin:0 0 12px">AFRIGO</p><h1 style="color:#025344;font-size:22px;margin:0 0 16px">${escape(heading)}</h1><p style="color:#1f2a24;font-size:15px;line-height:1.6">${escape(body)}</p>${button}${note}</div></div>`
+  const html = `<div style="background:#f6f7f4;padding:32px 16px;font-family:Arial,Helvetica,sans-serif"><div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;border:1px solid #e5e7e1"><p style="color:#7cb041;font-weight:700;letter-spacing:.08em;font-size:12px;margin:0 0 12px">AFRIGOOS</p><h1 style="color:#025344;font-size:22px;margin:0 0 16px">${escape(heading)}</h1><p style="color:#1f2a24;font-size:15px;line-height:1.6">${escape(body)}</p>${button}${note}</div></div>`
   const text = [heading, '', body, action ? `\n${action.label}: ${action.url}` : '', footnote ? `\n${footnote}` : ''].join('\n')
   return { html, text }
 }

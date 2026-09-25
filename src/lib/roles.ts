@@ -1,10 +1,15 @@
-export const MEMBER_ROLES = ['Buyer', 'Seller', 'Exporter'] as const
+export const ORGANISATION_TYPES = ['exporter', 'importer', 'manufacturer', 'cooperative', 'aggregator', 'trade_service_provider'] as const
+
+export const ORGANISATION_KINDS = ['business', 'service_partner'] as const
+
+export const ORGANISATION_ROLES = ['administrator', 'member'] as const
 
 export const STAFF_ROLES = ['support_agent', 'dispute_officer', 'finance_operator', 'risk_officer', 'admin', 'super_admin'] as const
 
 export const PLATFORMS = ['web', 'ios', 'android', 'admin'] as const
 
-export type MemberRole = (typeof MEMBER_ROLES)[number]
+export type OrganisationType = (typeof ORGANISATION_TYPES)[number]
+export type OrganisationRole = (typeof ORGANISATION_ROLES)[number]
 export type StaffRole = (typeof STAFF_ROLES)[number]
 export type Platform = (typeof PLATFORMS)[number]
 

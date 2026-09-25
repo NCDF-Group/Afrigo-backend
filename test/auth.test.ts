@@ -8,7 +8,7 @@ describe('registration', () => {
   it('creates an account, returns tokens and sends a verification email', async () => {
     const response = await api().post('/api/v1/auth/register').send({ firstName: 'Ada', lastName: 'Okafor', email: 'Ada@Example.com', password: 'Password123', country: 'NG' })
     expect(response.status).toBe(201)
-    expect(response.body.user).toMatchObject({ email: 'ada@example.com', emailVerified: false, country: 'ng', role: null })
+    expect(response.body.user).toMatchObject({ email: 'ada@example.com', emailVerified: false, country: 'ng', locale: 'en', mfaEnabled: false })
     expect(response.body.user).not.toHaveProperty('passwordHash')
     expect(response.body.tokens.accessToken).toBeTruthy()
     expect(lastEmailToken('ada@example.com')).toBeTruthy()

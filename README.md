@@ -1,70 +1,83 @@
-# Afrigo Backend
+# AfriGoOS Backend
 
-The API behind Afrigo: the public web app, the iOS and Android apps, and the Afrigo Admin console all talk to this one service. It is written in plain Node.js (Express and TypeScript), stores everything in PostgreSQL, and is designed to run on Render.
+The one backend for AfriGoOS, the Africa wide trade and market access platform by NCDF Group. The responsive website, the installable web app and the AfriGoOS administration console all use this API.
 
-## Status
+> Find opportunities. Prepare for trade. Manage execution.
 
-| Area | State |
-| --- | --- |
-| Authentication | Built and tested: email and password, Google sign in, refresh token rotation, email verification, password reset, lockout, session management |
-| Members | Built and tested: profile, trade role selection, account deletion |
-| Admin: members | Built and tested: search, filter, suspend, reactivate, sign out everywhere, verify email, change role |
-| Admin: staff and audit | Built and tested: invite staff, change or revoke roles, audit log |
-| Trade, payments, logistics, notifications | Planned, see [Roadmap](#roadmap) |
+It is written in plain Node.js (Express and TypeScript), stores everything in PostgreSQL, and deploys to Render.
+
+## How this maps to the developer brief
+
+| Brief requirement | Where it lives | Status |
+| --- | --- | --- |
+| Account creation | `auth` module | Built |
+| Secure login, administrator MFA | `auth` module, TOTP MFA required for every AfriGoOS administrator | Built |
+| Business profiles and business details | `organisations` module | Built |
+| Colleague invitations | `organisations` invitations | Built |
+| A business can be both buyer and seller | Organisations carry several business types, not one fixed role | Built |
+| Business administrator, business team member | Organisation roles `administrator` and `member` | Built |
+| Service partner | Organisation kind `service_partner` | Built (assigned work comes with Service requests) |
+| AfriGoOS administrator | Staff roles with scoped capabilities | Built |
+| Review businesses | Admin organisation review queue | Built |
+| Configure countries and currencies | `config` module, 55 African countries | Built |
+| Activity logs | `audit_events`, written for every sensitive action | Built |
+| English first, ready for French | `locale` on every account (`en`, `fr`) | Built |
+| Low data pages | gzip compression, pagination, cached reference data | Built |
+| Document uploads and document protection | Documents module | Next |
+| Products and buyer requests, search, enquiries, quotations | Listings and Enquiries modules | Planned |
+| Trade cases with documents, tasks and shipment milestones | Trade cases module | Planned |
+| Logistics, inspection and trade readiness requests | Service requests module | Planned |
+| ETLS and AfCFTA guidance with evidence and escalation | Market access module | Planned |
+| Dashboard and notifications | Dashboard and Notifications modules | Planned |
+| Configure products and trade requirements | Config module extensions | Planned |
+| Backups | Render managed Postgres backups | At deployment |
+
+Live carrier tracking and payments are not part of the first release in the brief, so they are not built. Shipment progress is tracked as milestones inside a trade case.
 
 ## Tech stack
 
-| Concern | Choice | Why |
-| --- | --- | --- |
-| Runtime | Node.js 20+ | Long term support, native `fetch`, `--env-file` |
-| HTTP | Express 5 | Familiar, stable, async errors handled natively |
-| Language | TypeScript (ES modules) | Type safety across routes, services and the database |
-| Database | PostgreSQL 17 | Relational data for trades, payments and audit |
-| ORM | Drizzle | SQL first, fully typed, generated migrations |
-| Validation | Zod | One schema validates input and produces field level errors |
-| Tokens | jose (HS256 JWT) | Small, standards compliant, no native bindings |
-| Passwords | Node `scrypt` | Built in, memory hard, no native dependency |
-| Logging | pino | Structured JSON logs with request ids |
-| Security | helmet, cors, express-rate-limit | Secure headers, origin allow list, brute force protection |
-| Tests | Vitest and Supertest | Real HTTP requests against a real Postgres test database |
-| Hosting | Render (web service and managed Postgres) | One `render.yaml` provisions everything |
+| Concern | Choice |
+| --- | --- |
+| Runtime | Node.js 20+ |
+| HTTP | Express 5 |
+| Language | TypeScript, ES modules |
+| Database | PostgreSQL 17 with Drizzle ORM and generated migrations |
+| Validation | Zod |
+| Tokens | jose (HS256 JWT) |
+| Passwords | Node `scrypt` |
+| MFA | TOTP (RFC 6238), secrets encrypted with AES-256-GCM |
+| Logging | pino with request ids |
+| Security | helmet, strict CORS, express-rate-limit, compression |
+| Tests | Vitest and Supertest against a real Postgres database |
+| Hosting | Render web service and managed Postgres |
 
 ## Project structure
 
 ```
 .
-├── drizzle/                 Generated SQL migrations (commit these)
+├── drizzle/                     SQL migrations (0001 seeds the 55 African countries)
 ├── src/
-│   ├── app.ts               Express app: middleware, routers, error handling
-│   ├── server.ts            Starts the HTTP server, graceful shutdown
-│   ├── config/env.ts        Validated environment variables
-│   ├── db/
-│   │   ├── schema.ts        Tables and enums
-│   │   ├── client.ts        Postgres connection and Drizzle instance
-│   │   ├── migrate.ts       Applies migrations
-│   │   └── seed-admin.ts    Creates the first super administrator
-│   ├── lib/                 Shared helpers: crypto, JWT, mailer, audit, roles, errors
-│   ├── middleware/          Authentication, rate limits, error handler
+│   ├── app.ts                   Express app and route mounting
+│   ├── server.ts                HTTP server and graceful shutdown
+│   ├── config/env.ts            Validated environment variables
+│   ├── db/                      Schema, client, migrate and seed scripts
+│   ├── lib/                     crypto, encryption, totp, jwt, mailer, audit, roles, errors
+│   ├── middleware/              authentication, rate limits, errors
 │   └── modules/
-│       ├── auth/            Registration, sign in, tokens, verification, passwords
-│       ├── users/           Member profile and admin member management
-│       ├── staff/           Staff invites, roles and the audit log
-│       └── health/          Liveness and readiness checks
-├── test/                    End to end tests
-├── render.yaml              Render blueprint
-└── docker-compose.yml       Optional local Postgres
+│       ├── auth/                Accounts, sign in, sessions, MFA, passwords
+│       ├── users/               Personal profile and admin member management
+│       ├── organisations/       Businesses, service partners, colleagues, invitations, review
+│       ├── staff/               AfriGoOS administrators and the audit log
+│       ├── config/              Countries and currencies
+│       └── health/              Liveness and readiness
+└── test/                        End to end tests
 ```
 
-Each module keeps the same shape: `*.schemas.ts` (Zod input), `*.service.ts` (business logic and queries) and `*.routes.ts` (HTTP only).
+Every module has the same three files: `*.schemas.ts` for input, `*.service.ts` for rules and queries, and `*.routes.ts` for HTTP.
 
 ## Getting started
 
-### Prerequisites
-
-- Node.js 20 or later
-- PostgreSQL 17 running locally. On macOS: `brew install postgresql@17 && brew services start postgresql@17`. Or run `docker compose up -d`.
-
-### Setup
+Prerequisites: Node.js 20+ and PostgreSQL 17 (`brew install postgresql@17 && brew services start postgresql@17`, or `docker compose up -d`).
 
 ```bash
 npm install
@@ -76,230 +89,256 @@ npm run db:seed:admin
 npm run dev
 ```
 
-Before running `db:seed:admin`, fill in `DATABASE_URL`, `JWT_ACCESS_SECRET` and the three `SEED_ADMIN_*` values in `.env`. Generate a secret with:
+Fill in `DATABASE_URL`, `JWT_ACCESS_SECRET`, `ENCRYPTION_KEY` and the `SEED_ADMIN_*` values first. Generate each secret separately with:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
-The API runs on http://localhost:4000. Check it with http://localhost:4000/api/v1/health/ready.
+The API runs on http://localhost:4000. Check http://localhost:4000/api/v1/health/ready.
 
-### Tests
+The first time the seeded administrator signs in, the API asks them to set up MFA with an authenticator app such as Google Authenticator, Microsoft Authenticator or 1Password.
 
-```bash
-npm test
-```
-
-Tests reset and migrate the `afrigo_test` database before running. Point them elsewhere with `TEST_DATABASE_URL`.
+Run the tests with `npm test`. They rebuild the `afrigo_test` database each run.
 
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Start the API with hot reload |
+| `npm run dev` | Start with hot reload |
 | `npm run build` | Compile to `dist/` |
 | `npm start` | Run the compiled API |
-| `npm run typecheck` | Type check without emitting |
+| `npm run typecheck` | Type check |
 | `npm test` | Run the test suite |
-| `npm run db:generate` | Create a new migration after editing `src/db/schema.ts` |
-| `npm run db:migrate` | Apply migrations (development) |
+| `npm run db:generate` | Create a migration after editing `src/db/schema.ts` |
+| `npm run db:migrate` | Apply migrations |
 | `npm run db:seed:admin` | Create or reset the first super administrator |
-| `npm run db:studio` | Browse the database in Drizzle Studio |
-| `npm run start:render` | Apply migrations then start (used by Render) |
+| `npm run db:studio` | Browse the database |
+| `npm run start:render` | Apply migrations then start (Render) |
 
 ## Environment variables
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | Yes | Postgres connection string. Render fills this in automatically |
-| `JWT_ACCESS_SECRET` | Yes | Signs access tokens. At least 32 random characters. Render generates it |
-| `NODE_ENV` | No | `development`, `test` or `production` |
-| `PORT` | No | Defaults to 4000. Render sets its own |
-| `LOG_LEVEL` | No | `info` in production, `debug` locally |
-| `DATABASE_SSL` | No | Force SSL on or off. SSL is enabled automatically for Render external URLs |
-| `DATABASE_POOL_SIZE` | No | Connections per instance, default 10 |
-| `ACCESS_TOKEN_TTL_MINUTES` | No | Access token lifetime, default 15 |
-| `REFRESH_TOKEN_TTL_DAYS` | No | Refresh token lifetime, default 30 |
-| `CORS_ORIGINS` | Production | Comma separated browser origins, for example the web app and admin console URLs |
-| `WEB_APP_URL` | Production | Used in verification and reset links for members |
-| `ADMIN_APP_URL` | Production | Used in staff invite and staff reset links |
-| `EMAIL_FROM` | No | Sender shown on emails |
-| `RESEND_API_KEY` | Production | Sends transactional email. Without it, emails are written to the log in development |
-| `GOOGLE_CLIENT_IDS` | For Google sign in | Comma separated OAuth client ids for web, iOS and Android |
-| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME` | Once | Used by `db:seed:admin`. Password must be at least 12 characters |
-| `PAYSTACK_SECRET_KEY`, `S3_*`, `FIREBASE_*`, `DHL_API_KEY`, `REDIS_URL`, `SENTRY_DSN` | Later | Reserved for the modules in the roadmap |
+| `DATABASE_URL` | Yes | Postgres connection. Render fills it in |
+| `JWT_ACCESS_SECRET` | Yes | Signs access and MFA tokens. 32+ characters. Render generates it |
+| `ENCRYPTION_KEY` | Yes | Encrypts MFA secrets at rest. 32+ characters, different from the JWT secret. Render generates it. Never change it after launch, or enrolled authenticators stop working |
+| `CORS_ORIGINS` | Production | Browser origins allowed to call the API, comma separated |
+| `WEB_APP_URL` | Production | Base for verification, reset and colleague invitation links |
+| `ADMIN_APP_URL` | Production | Base for administrator invitation and reset links |
+| `RESEND_API_KEY` | Production | Sends email. Without it, development prints emails to the log |
+| `EMAIL_FROM` | No | Sender, default `AfriGoOS <no-reply@afrigo.africa>` |
+| `GOOGLE_CLIENT_IDS` | Optional | Enables Google sign in |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME` | Once | First super administrator. Password 12+ characters |
+| `NODE_ENV`, `PORT`, `LOG_LEVEL` | No | Runtime settings |
+| `DATABASE_SSL`, `DATABASE_POOL_SIZE` | No | Connection tuning |
+| `ACCESS_TOKEN_TTL_MINUTES`, `REFRESH_TOKEN_TTL_DAYS` | No | Default 15 minutes and 30 days |
+| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Documents module | Private document storage |
+| `REDIS_URL` | Later | Background jobs and shared rate limits when running several instances |
+| `SENTRY_DSN` | Before launch | Error tracking |
 
-## Authentication
+## Access model
 
-### How it works
+This follows slide 7 of the brief.
 
-1. A client signs in and receives an **access token** (JWT, 15 minutes) and a **refresh token** (random, 30 days).
-2. Every request sends `Authorization: Bearer <accessToken>`.
-3. When the access token expires, the client calls `POST /auth/refresh` with the refresh token and receives a new pair. The old refresh token stops working immediately.
-4. If an old refresh token is ever used again, the whole session family is revoked. This detects stolen tokens.
+| Brief role | How it works here |
+| --- | --- |
+| Business administrator | `administrator` member of an organisation. Manages the profile, colleagues, invitations and verification |
+| Business team member | `member` of an organisation. Works on the business's enquiries, documents and trade cases |
+| Service partner | A user in an organisation of kind `service_partner`. Will see only the service requests assigned to that partner |
+| AfriGoOS administrator | A user with a staff role. Reviews businesses, manages guidance and oversees operations. MFA is mandatory |
 
-Access tokens are checked against the database on every request, so suspending an account, changing a password, revoking a session or changing a staff role takes effect at once rather than when the token expires.
+A person can belong to several organisations. An organisation lists several business types (`exporter`, `importer`, `manufacturer`, `cooperative`, `aggregator`, `trade_service_provider`), so one business can buy and sell. Private records are only visible to members of the owning organisation: anyone else gets `404`.
 
-### Security measures
-
-- Passwords hashed with scrypt and a unique salt. Minimum 8 characters with a letter and a number.
-- Five wrong passwords lock the account for 15 minutes.
-- Sign in failures use one message whether or not the email exists, and take the same time.
-- Refresh tokens, verification links and reset links are stored only as SHA-256 hashes, are single use and expire.
-- Rate limits: 300 requests a minute per IP overall, 20 sign in attempts per 10 minutes, 5 sensitive actions (password reset, resend verification, change password, delete account) per 15 minutes.
-- Password reset and sign out everywhere revoke every session.
-- Every sign in, failure, password change, role change and admin action is written to `audit_events` with IP and user agent.
-- Secure headers via helmet, a strict CORS allow list, and a 1 MB request body limit.
-
-### Client headers
-
-| Header | Values | Purpose |
-| --- | --- | --- |
-| `Authorization` | `Bearer <accessToken>` | Authenticated requests |
-| `X-Client-Platform` | `web`, `ios`, `android`, `admin` | Records which app a member uses, powering web versus mobile statistics |
-| `X-App-Version` | `2.5.0` | Records the installed mobile app version |
-
-The admin console must sign in with `"platform": "admin"`. Members without a staff role are refused there.
-
-### Roles
-
-Members choose one trade role: `Buyer`, `Seller` or `Exporter`.
-
-Staff roles and what they can do:
+Administrator duties are split into staff roles so each person only gets what they need:
 
 | Staff role | Capabilities |
 | --- | --- |
-| `support_agent` | cases, members (read), inbox, analytics |
-| `dispute_officer` | cases, dispute decisions, members (read), analytics |
-| `finance_operator` | finance, payouts, refunds, members (read), analytics |
-| `risk_officer` | verification, compliance, member management, marketplace moderation, analytics |
-| `admin` | everything except finance execution and staff management |
+| `support_agent` | support cases, members (read), inbox, activity |
+| `dispute_officer` | support cases, case decisions, members (read), activity |
+| `finance_operator` | finance, members (read), activity |
+| `risk_officer` | business review, compliance, member management, listing moderation, activity |
+| `admin` | all operations except staff management |
 | `super_admin` | everything |
 
-These match the capabilities used by Afrigo Admin, and are returned on the user object as `capabilities`.
+The API returns them as `user.capabilities`, the same names the AfriGoOS Admin console uses.
+
+## Authentication
+
+1. Sign in returns an **access token** (15 minutes) and a **refresh token** (30 days).
+2. Send `Authorization: Bearer <accessToken>` on every request.
+3. Before the access token expires, call `POST /auth/refresh`. Each refresh token works once. Reusing an old one revokes every session in that chain, which catches stolen tokens.
+4. Access tokens are checked against the database on every request, so suspensions, password changes and revoked sessions apply immediately.
+
+### Two step verification (MFA)
+
+When MFA applies, sign in returns an `mfaToken` instead of tokens:
+
+- `{ "mfaSetupRequired": true, "mfaToken": "..." }`: an administrator who has not enrolled yet. Call `POST /auth/mfa/setup` with the `mfaToken` to get a secret and an `otpauth://` link (show it as a QR code), then `POST /auth/mfa/enable` with the `mfaToken` and the first 6 digit code. The response signs them in and includes 10 single use recovery codes to store safely.
+- `{ "mfaRequired": true, "mfaToken": "..." }`: call `POST /auth/mfa/challenge` with the `mfaToken` and either `code` or `recoveryCode`.
+
+MFA is mandatory for AfriGoOS administrators and optional for everyone else. Codes cannot be reused, secrets are encrypted in the database, and failed codes count toward the account lockout. A super administrator can reset another administrator's MFA if they lose their device.
+
+### Other protections
+
+- scrypt password hashing. Passwords need 8+ characters with a letter and a number.
+- 5 wrong passwords or codes lock the account for 15 minutes.
+- One error message for unknown email and wrong password.
+- Verification, reset and invitation links are stored hashed, single use and short lived.
+- Rate limits: 300 requests a minute per IP, 20 sign in attempts per 10 minutes, 5 sensitive actions per 15 minutes.
+- Every sign in, failure, MFA change, invitation, review and admin action is recorded in the activity log.
+
+### Client headers
+
+| Header | Example | Purpose |
+| --- | --- | --- |
+| `Authorization` | `Bearer eyJ...` | Signed in requests |
+| `X-Client-Platform` | `web`, `ios`, `android`, `admin` | Which app is calling |
+| `X-App-Version` | `1.0.0` | Installed app version |
+
+The administration console signs in with `"platform": "admin"`. Accounts without a staff role are refused there.
 
 ## API reference
 
-Base URL: `/api/v1`. All bodies are JSON.
-
-### Errors
-
-Every error has the same shape:
+Base path `/api/v1`. JSON in and out. Errors always look like:
 
 ```json
-{
-  "error": { "code": "VALIDATION_FAILED", "message": "Some fields are missing or invalid.", "details": [{ "field": "password", "message": "Include at least one number." }] },
-  "requestId": "0b6c2f9e-..."
-}
+{ "error": { "code": "VALIDATION_FAILED", "message": "Some fields are missing or invalid.", "details": [{ "field": "types", "message": "Choose at least one business type." }] }, "requestId": "..." }
 ```
 
-Clients should branch on `code` and can show `message` directly to users.
+Branch on `code`; `message` is safe to show to users. Paged lists return `{ items, page, pageSize, total, totalPages }`.
 
-### Health
+### Health and configuration
 
-| Method | Path | Auth | Description |
+| Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
-| GET | `/health/live` | None | Process is running |
-| GET | `/health/ready` | None | Database is reachable. Used by Render |
+| GET | `/health/live` | None | Process is up |
+| GET | `/health/ready` | None | Database reachable (Render health check) |
+| GET | `/config/countries?enabled=true` | None | Countries with region, currency, ECOWAS and AfCFTA flags |
 
-### Auth
+### Accounts and sign in
 
-| Method | Path | Auth | Body | Returns |
-| --- | --- | --- | --- | --- |
-| POST | `/auth/register` | None | `firstName, lastName, email, password, phone?, country?, platform?` | `201 { user, tokens }` and sends a verification email |
-| POST | `/auth/login` | None | `email, password, platform?` | `{ user, tokens }` |
-| POST | `/auth/google` | None | `idToken, platform?` | `{ user, tokens }` |
-| POST | `/auth/refresh` | None | `refreshToken` | `{ user, tokens }` |
-| POST | `/auth/logout` | None | `refreshToken` | `204` |
-| POST | `/auth/logout-all` | Member | | `204`, every device signed out |
-| GET | `/auth/me` | Member | | `{ user }` |
-| POST | `/auth/email/verify` | None | `token` | `{ user }` |
-| POST | `/auth/email/resend` | Member | | `202` |
-| POST | `/auth/password/forgot` | None | `email` | `202` always |
-| POST | `/auth/password/reset` | None | `token, password` | `204`, also accepts staff invite tokens |
-| POST | `/auth/password/change` | Member | `currentPassword?, newPassword` | `204`, other devices signed out |
-| GET | `/auth/sessions` | Member | | `{ items }` with the current session marked |
-| DELETE | `/auth/sessions/:id` | Member | | `204` |
+| Method | Path | Auth | Body |
+| --- | --- | --- | --- |
+| POST | `/auth/register` | None | `firstName, lastName, email, password, phone?, country?, locale?, platform?` |
+| POST | `/auth/login` | None | `email, password, platform?` |
+| POST | `/auth/google` | None | `idToken, platform?` |
+| POST | `/auth/mfa/challenge` | None | `mfaToken, code` or `mfaToken, recoveryCode` |
+| POST | `/auth/mfa/setup` | `mfaToken` or signed in | `mfaToken?` |
+| POST | `/auth/mfa/enable` | `mfaToken` or signed in | `mfaToken?, code` |
+| POST | `/auth/mfa/disable` | Signed in | `code` (not allowed for administrators) |
+| POST | `/auth/mfa/recovery-codes` | Signed in | `code` |
+| POST | `/auth/refresh` | None | `refreshToken` |
+| POST | `/auth/logout` | None | `refreshToken` |
+| POST | `/auth/logout-all` | Signed in | |
+| GET | `/auth/me` | Signed in | Returns `{ user, organisations }` |
+| POST | `/auth/email/verify` | None | `token` |
+| POST | `/auth/email/resend` | Signed in | |
+| POST | `/auth/password/forgot` | None | `email` (always `202`) |
+| POST | `/auth/password/reset` | None | `token, password` (also accepts administrator invitations) |
+| POST | `/auth/password/change` | Signed in | `currentPassword?, newPassword` |
+| GET | `/auth/sessions` | Signed in | |
+| DELETE | `/auth/sessions/:id` | Signed in | |
+| PATCH | `/users/me` | Signed in | any of `firstName, lastName, phone, country, avatarUrl, locale` |
+| DELETE | `/users/me` | Signed in | `password?, confirm: "DELETE"` |
 
-`tokens` looks like:
+### Businesses and colleagues
 
-```json
-{ "accessToken": "eyJ...", "accessTokenExpiresIn": 900, "refreshToken": "q3V...", "refreshTokenExpiresAt": "2026-10-25T11:40:43.774Z", "tokenType": "Bearer" }
-```
+| Method | Path | Who | Body |
+| --- | --- | --- | --- |
+| POST | `/organisations` | Signed in | `name, types[], country, kind?, tradingName?, registrationNumber?, taxId?, city?, address?, description?, website?, email?, phone?, logoUrl?` |
+| GET | `/organisations/mine` | Signed in | |
+| GET | `/organisations/:id` | Member | |
+| PATCH | `/organisations/:id` | Administrator | Any profile field. Changing name, registration, tax id or country clears a verified badge |
+| POST | `/organisations/:id/verification` | Administrator | Submits for review. Needs a registration number |
+| GET | `/organisations/:id/members` | Member | |
+| PATCH | `/organisations/:id/members/:userId` | Administrator | `role` |
+| DELETE | `/organisations/:id/members/:userId` | Administrator, or yourself to leave | |
+| GET | `/organisations/:id/invitations` | Administrator | |
+| POST | `/organisations/:id/invitations` | Administrator | `email, role?` |
+| DELETE | `/organisations/:id/invitations/:invitationId` | Administrator | |
+| POST | `/organisations/invitations/accept` | Signed in with the invited email | `token` |
 
-Email links point to `WEB_APP_URL/verify-email?token=...` and `WEB_APP_URL/reset-password?token=...`. Staff links point to `ADMIN_APP_URL/reset-password?token=...`. The web app and admin console need those two pages to post the token back.
+A business must always keep one administrator. Businesses can only register in countries that are enabled.
 
-### Members
+### Administration
 
-| Method | Path | Auth | Body | Returns |
-| --- | --- | --- | --- | --- |
-| PATCH | `/users/me` | Member | any of `firstName, lastName, phone, country, avatarUrl` | `{ user }` |
-| PUT | `/users/me/role` | Member | `role` | `{ user }`. The role can be chosen once |
-| DELETE | `/users/me` | Member | `password?, confirm: "DELETE"` | `204`. Anonymises the account, as required by the App Store and Google Play |
+| Method | Path | Capability | Body or query |
+| --- | --- | --- | --- |
+| GET | `/admin/organisations` | `risk:read` | `q, kind, country, verificationStatus, status, page, pageSize` |
+| GET | `/admin/organisations/:id` | `risk:read` | |
+| POST | `/admin/organisations/:id/review` | `compliance:review` | `decision: "verify"` or `decision: "reject", note` |
+| POST | `/admin/organisations/:id/status` | `users:manage` | `action: "suspend", reason` or `action: "reactivate"` |
+| GET | `/admin/users` | `users:read` | `q, country, status, platform, verified, page, pageSize` |
+| GET | `/admin/users/:id` | `users:read` | |
+| POST | `/admin/users/:id/actions` | `users:manage` | `suspend` with `reason`, `reactivate`, `revoke-sessions`, `verify-email`, `reset-mfa` |
+| GET | `/admin/staff` | `staff:manage` | |
+| POST | `/admin/staff` | `staff:manage` | `email, firstName, lastName, role` |
+| PATCH | `/admin/staff/:id` | `staff:manage` | `role`, or `null` to revoke |
+| POST | `/admin/staff/:id/reset-mfa` | `staff:manage` | |
+| GET | `/admin/audit` | `staff:manage` | `action?, page, pageSize` |
+| PATCH | `/admin/config/countries/:iso2` | `apps:manage` | `enabled?, pilot?, currency?` |
 
-### Admin
+### Links in emails
 
-| Method | Path | Capability | Body or query | Returns |
-| --- | --- | --- | --- | --- |
-| GET | `/admin/users` | `users:read` | `q, role, country, status, platform, verified, page, pageSize` | Paged members |
-| GET | `/admin/users/:id` | `users:read` | | `{ user, sessions }` |
-| POST | `/admin/users/:id/actions` | `users:manage` | `{ action: "suspend", reason }`, `reactivate`, `revoke-sessions`, `verify-email`, `{ action: "set-role", role }` | `{ user, sessions }` |
-| GET | `/admin/staff` | `staff:manage` | | `{ items }` |
-| POST | `/admin/staff` | `staff:manage` | `email, firstName, lastName, role` | `201 { staff }`, emails an invite |
-| PATCH | `/admin/staff/:id` | `staff:manage` | `role` (or `null` to revoke) | `{ staff }` |
-| GET | `/admin/audit` | `staff:manage` | `action?, page, pageSize` | Paged audit events |
+The website and console need these pages, each posting the `token` query value back to the API:
 
-Paged responses look like `{ items, page, pageSize, total, totalPages }`.
+| Page | Posts to |
+| --- | --- |
+| `WEB_APP_URL/verify-email?token=` | `/auth/email/verify` |
+| `WEB_APP_URL/reset-password?token=` | `/auth/password/reset` |
+| `WEB_APP_URL/invitations/accept?token=` | `/organisations/invitations/accept` (after sign in) |
+| `ADMIN_APP_URL/reset-password?token=` | `/auth/password/reset` (also used for administrator invitations) |
 
 ## Deploying to Render
 
-1. Push this repository to GitHub.
-2. In Render, choose **New**, then **Blueprint**, and select the repository. Render reads `render.yaml` and creates the `afrigo-db` Postgres database and the `afrigo-api` web service.
-3. When prompted, fill in the values marked `sync: false`. At minimum: `CORS_ORIGINS`, `WEB_APP_URL`, `ADMIN_APP_URL`, `RESEND_API_KEY` and the three `SEED_ADMIN_*` values.
-4. Deploy. Every start runs `npm run db:migrate:prod` first, so the schema is always current.
-5. Create the first super administrator once, from the web service **Shell** tab:
+1. Push to GitHub.
+2. In Render choose **New**, **Blueprint**, and select this repository. `render.yaml` creates the `afrigo-db` database and the `afrigo-api` service.
+3. Fill in the prompted values: `CORS_ORIGINS`, `WEB_APP_URL`, `ADMIN_APP_URL`, `RESEND_API_KEY` and the `SEED_ADMIN_*` values.
+4. Deploy. Each start applies migrations first.
+5. Open the service **Shell** and run `npm run db:seed:admin:prod` once.
+6. Sign in to the console, enrol MFA, then delete `SEED_ADMIN_PASSWORD` from the environment.
+7. Add `api.afrigo.africa` as a custom domain.
 
-   ```bash
-   npm run db:seed:admin:prod
-   ```
+The blueprint uses the Starter web plan and Basic Postgres in Frankfurt, the nearest Render region to West Africa. Use a staging deploy first. Render free plans are fine for testing, but free web services sleep and free databases expire after 30 days.
 
-6. Sign in to Afrigo Admin with that email and password, then remove `SEED_ADMIN_PASSWORD` from the environment.
-7. Add your custom domain, for example `api.afrigo.africa`, under the service **Settings**.
+## Pilot markets
 
-The blueprint uses the Starter web plan and the Basic Postgres plan in Frankfurt, the closest Render region to West Africa. Render's free plans also work for testing, but free web services sleep when idle and free databases expire after 30 days.
+The 12 ECOWAS members are open by default: Benin, Cabo Verde, Côte d'Ivoire, The Gambia, Ghana, Guinea, Guinea-Bissau, Liberia, Nigeria, Senegal, Sierra Leone and Togo. The brief asks to confirm the pilot markets (slide 11). Once agreed, mark them with `pilot: true` and open or close others from the console with `PATCH /admin/config/countries/:iso2`.
 
 ## What else you need
 
-| Service | Why | When | Setting |
-| --- | --- | --- | --- |
-| Render account | Hosts the API and Postgres | Now | `render.yaml` |
-| Domain and DNS | `api.afrigo.africa` for the API, and sending domain for email | Now | Render custom domain |
-| Resend | Verification, password reset and staff invite emails. Verify the sending domain first | Now | `RESEND_API_KEY`, `EMAIL_FROM` |
-| Google Cloud OAuth client ids | Google sign in on web, iOS and Android | Now, if Google sign in is kept | `GOOGLE_CLIENT_IDS` |
-| Paystack | Trade payments, escrow, seller payouts and refunds | Payments module | `PAYSTACK_SECRET_KEY` |
-| Object storage (Cloudflare R2 or AWS S3) | KYC documents, product images, chat attachments | Documents module | `S3_*` |
-| Firebase Cloud Messaging | Push notifications to Android, iOS and the web | Notifications module | `FIREBASE_*` |
-| DHL API | Live shipment tracking | Logistics module | `DHL_API_KEY` |
-| Redis (Render Key Value) | Background jobs, shared rate limits across instances, real time fan out | When running more than one instance | `REDIS_URL` |
-| Sentry | Error tracking and alerts | Before launch | `SENTRY_DSN` |
-| Postgres backups | Point in time recovery | Before launch | Included on paid Render Postgres plans |
+| Service | Why | When |
+| --- | --- | --- |
+| Render account | API and Postgres hosting | Now |
+| Domain and DNS | `api.afrigo.africa` and a verified email sending domain | Now |
+| Resend | Verification, reset, invitation and review emails | Now |
+| Authenticator app for each administrator | Mandatory administrator MFA | Now |
+| Google Cloud OAuth client ids | Google sign in, if kept | Optional |
+| Object storage (Cloudflare R2 or AWS S3, private bucket) | Business documents, origin evidence, product images | Documents module |
+| Web Push keys (VAPID) | Notifications in the installable web app | Notifications module |
+| Redis (Render Key Value) | Background jobs, shared rate limits across instances | When scaling out |
+| Sentry | Error tracking and alerts | Before pilot |
+| Postgres backups and point in time recovery | Required by the brief | Paid Render Postgres plan |
 
 ## Roadmap
 
-Built in this order, each module following the same schemas, service and routes pattern, with tests:
+Following the brief's four stages (confirm and design, build, pilot, launch and expand), the build stage continues in this order:
 
-1. **Companies and verification.** Company profile, KYC document upload to object storage, review queue for Afrigo Admin Verification.
-2. **Marketplace.** Listings (lots), buyer requests (RFQs) and bids, with moderation for Afrigo Admin Marketplace.
-3. **Trades.** Contracts created from awarded bids or direct purchases, status history, cancellation and disputes.
-4. **Payments.** Paystack checkout, webhooks, escrow balances, payout requests with two person approval, refunds.
-5. **Logistics.** Exporter assignment, shipment milestones, DHL tracking.
-6. **Messaging.** Trade conversations and attachments.
-7. **Notifications.** Device token registration, push broadcasts, in app notifications.
-8. **App configuration.** Per platform versions, force update, maintenance mode, banners and feature flags for Afrigo Admin App control.
-9. **Analytics.** Activity events and the live per country statistics feed for Afrigo Admin.
-10. **Support.** Contact form inbox and support cases.
+1. **Documents.** Private uploads for business verification and origin evidence, signed download links, access checks by organisation.
+2. **Listings.** Products and buyer requests with specifications, quantities, locations, images and requirements. Admin moderation.
+3. **Search and enquiries.** Search products, buyer requests and supply opportunities; enquiries between businesses; quotations and responses.
+4. **Trade cases.** Opened from an enquiry. Quotations, documents, tasks and shipment milestones in one workspace shared by the parties.
+5. **Service requests.** Logistics, inspection and trade readiness requests assigned to service partners, who only see their assigned work.
+6. **Market access guidance.** Separate ETLS and AfCFTA workflows by product, origin and destination, with requirements, official references and last review dates, origin evidence, preparation tasks and escalation. It never promises duty free access or issues certificates.
+7. **Dashboard and notifications.** Enquiries, active trade cases, outstanding tasks, in app and email notifications, web push.
+8. **Configuration.** Product categories, trade requirements and guidance content managed by administrators.
+9. **Support and activity.** Contact enquiries, support assignment and platform activity for the console.
 
-## Connecting the apps
+### Launch acceptance (slide 10)
 
-- **Web app and mobile apps:** replace Firebase Authentication with `/auth/register`, `/auth/login`, `/auth/google` and `/auth/refresh`. Store the refresh token securely (Keychain on iOS, EncryptedSharedPreferences on Android, an httpOnly cookie set by the web app's own server on the web). Send `X-Client-Platform` and `X-App-Version` on every request.
-- **Afrigo Admin:** sign in with `platform: "admin"` and use `user.capabilities` to show or hide sections, the same way the console does today.
+The backend is done for release one when these pass end to end:
+
+1. A business registers and publishes a product or buyer request.
+2. Users exchange an enquiry, open a trade case, upload documents and track tasks.
+3. Administrators manage the journey securely, with access controls verified.

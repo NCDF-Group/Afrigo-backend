@@ -23,3 +23,10 @@ export async function verifyPassword(password: string, stored: string | null | u
 export const randomToken = (bytes = 32) => randomBytes(bytes).toString('base64url')
 
 export const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
+
+export function recoveryCodes(count = 10) {
+  return Array.from({ length: count }, () => {
+    const raw = randomBytes(5).toString('hex').toUpperCase()
+    return `${raw.slice(0, 5)}-${raw.slice(5)}`
+  })
+}

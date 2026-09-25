@@ -4,7 +4,7 @@ import { sql } from './db/client.js'
 import { logger } from './lib/logger.js'
 
 const server = createApp().listen(env.PORT, '0.0.0.0', () => {
-  logger.info(`Afrigo API listening on port ${env.PORT}`)
+  logger.info(`AfriGoOS API listening on port ${env.PORT}`)
 })
 
 function shutdown(signal: string) {

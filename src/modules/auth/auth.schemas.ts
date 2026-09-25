@@ -21,6 +21,7 @@ export const registerSchema = z.object({
   password,
   phone: z.string().trim().max(32).optional(),
   country: z.string().trim().length(2, 'Use a two letter country code.').toLowerCase().optional(),
+  locale: z.enum(['en', 'fr']).optional(),
   platform
 })
 
@@ -35,5 +36,19 @@ export const tokenSchema = z.object({ token: z.string().min(20).max(512) })
 export const forgotSchema = z.object({ email })
 
 export const resetSchema = z.object({ token: z.string().min(20).max(512), password })
+
+const mfaToken = z.string().min(20).max(2048)
+
+export const mfaCode = z.string().trim().regex(/^\d{6}$/, 'Enter the 6 digit code from your authenticator app.')
+
+export const mfaChallengeSchema = z
+  .object({ mfaToken, code: mfaCode.optional(), recoveryCode: z.string().trim().min(8).max(20).optional() })
+  .refine(value => Boolean(value.code) !== Boolean(value.recoveryCode), 'Enter either an authenticator code or a recovery code.')
+
+export const mfaSetupSchema = z.object({ mfaToken: mfaToken.optional() })
+
+export const mfaEnableSchema = z.object({ mfaToken: mfaToken.optional(), code: mfaCode })
+
+export const mfaCodeSchema = z.object({ code: mfaCode })
 
 export const changePasswordSchema = z.object({ currentPassword: z.string().max(128).optional(), newPassword: password })

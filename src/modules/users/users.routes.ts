@@ -4,7 +4,7 @@ import { idSchema } from '../../lib/pagination.js'
 import { parse } from '../../lib/validate.js'
 import { requireAuth, requireStaff } from '../../middleware/authenticate.js'
 import { sensitiveLimiter } from '../../middleware/rate-limit.js'
-import { adminActionSchema, deleteAccountSchema, listUsersSchema, roleSchema, updateProfileSchema } from './users.schemas.js'
+import { adminActionSchema, deleteAccountSchema, listUsersSchema, updateProfileSchema } from './users.schemas.js'
 import * as usersService from './users.service.js'
 
 export const usersRouter = Router()
@@ -12,13 +12,6 @@ export const usersRouter = Router()
 usersRouter.patch('/me', requireAuth, async (request, response) => {
   const input = parse(updateProfileSchema, request.body)
   response.json({ user: await usersService.updateProfile(request.auth!.user, input) })
-})
-
-usersRouter.put('/me/role', requireAuth, async (request, response) => {
-  const { role } = parse(roleSchema, request.body)
-  const user = await usersService.chooseRole(request.auth!.user, role)
-  await audit({ actorId: user.id, action: 'user.role_selected', targetType: 'user', targetId: user.id, metadata: { role }, request })
-  response.json({ user })
 })
 
 usersRouter.delete('/me', sensitiveLimiter, requireAuth, async (request, response) => {

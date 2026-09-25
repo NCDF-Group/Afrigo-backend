@@ -5,7 +5,8 @@ import { idSchema } from '../../lib/pagination.js'
 import { parse } from '../../lib/validate.js'
 import { requireAuth } from '../../middleware/authenticate.js'
 import { authLimiter, sensitiveLimiter } from '../../middleware/rate-limit.js'
-import { changePasswordSchema, forgotSchema, googleSchema, loginSchema, refreshSchema, registerSchema, resetSchema, tokenSchema } from './auth.schemas.js'
+import { membershipsOf } from '../organisations/organisations.service.js'
+import { changePasswordSchema, forgotSchema, googleSchema, loginSchema, mfaChallengeSchema, mfaCodeSchema, mfaEnableSchema, mfaSetupSchema, refreshSchema, registerSchema, resetSchema, tokenSchema } from './auth.schemas.js'
 import * as auth from './auth.service.js'
 
 export const authRouter = Router()
@@ -21,7 +22,7 @@ authRouter.post('/login', authLimiter, async (request, response) => {
   const input = parse(loginSchema, request.body)
   try {
     const result = await auth.login(input, clientContext(request))
-    await audit({ actorId: result.user.id, action: 'auth.login', targetType: 'user', targetId: result.user.id, metadata: { platform: input.platform ?? null }, request })
+    if ('user' in result) await audit({ actorId: result.user.id, action: 'auth.login', targetType: 'user', targetId: result.user.id, metadata: { platform: input.platform ?? null }, request })
     response.json(result)
   } catch (error) {
     await audit({ action: 'auth.login_failed', metadata: { email: input.email }, request })
@@ -32,8 +33,53 @@ authRouter.post('/login', authLimiter, async (request, response) => {
 authRouter.post('/google', authLimiter, async (request, response) => {
   const input = parse(googleSchema, request.body)
   const result = await auth.loginWithGoogle(input, clientContext(request))
-  await audit({ actorId: result.user.id, action: 'auth.login_google', targetType: 'user', targetId: result.user.id, request })
+  if ('user' in result) await audit({ actorId: result.user.id, action: 'auth.login_google', targetType: 'user', targetId: result.user.id, request })
   response.json(result)
+})
+
+authRouter.post('/mfa/challenge', authLimiter, async (request, response) => {
+  const input = parse(mfaChallengeSchema, request.body)
+  const result = await auth.completeMfaChallenge(input, clientContext(request))
+  await audit({ actorId: result.user.id, action: input.recoveryCode ? 'auth.login_recovery_code' : 'auth.login', targetType: 'user', targetId: result.user.id, metadata: { mfa: true }, request })
+  response.json(result)
+})
+
+authRouter.post('/mfa/setup', authLimiter, async (request, response) => {
+  const { mfaToken } = parse(mfaSetupSchema, request.body)
+  if (mfaToken) {
+    response.json(await auth.setupWithMfaToken(mfaToken))
+    return
+  }
+  await requireAuth(request, response, () => {})
+  response.json(await auth.beginMfaSetup(request.auth!.user))
+})
+
+authRouter.post('/mfa/enable', authLimiter, async (request, response) => {
+  const { mfaToken, code } = parse(mfaEnableSchema, request.body)
+  if (mfaToken) {
+    const result = await auth.enableWithMfaToken(mfaToken, code, clientContext(request))
+    await audit({ actorId: result.user.id, action: 'auth.mfa_enabled', targetType: 'user', targetId: result.user.id, request })
+    response.json(result)
+    return
+  }
+  await requireAuth(request, response, () => {})
+  const { recoveryCodes } = await auth.enableMfa(request.auth!.user, code)
+  await audit({ actorId: request.auth!.user.id, action: 'auth.mfa_enabled', targetType: 'user', targetId: request.auth!.user.id, request })
+  response.json({ recoveryCodes })
+})
+
+authRouter.post('/mfa/disable', sensitiveLimiter, requireAuth, async (request, response) => {
+  const { code } = parse(mfaCodeSchema, request.body)
+  await auth.disableMfa(request.auth!.user, code)
+  await audit({ actorId: request.auth!.user.id, action: 'auth.mfa_disabled', targetType: 'user', targetId: request.auth!.user.id, request })
+  response.status(204).end()
+})
+
+authRouter.post('/mfa/recovery-codes', sensitiveLimiter, requireAuth, async (request, response) => {
+  const { code } = parse(mfaCodeSchema, request.body)
+  const recoveryCodes = await auth.regenerateRecoveryCodes(request.auth!.user, code)
+  await audit({ actorId: request.auth!.user.id, action: 'auth.mfa_recovery_codes_regenerated', targetType: 'user', targetId: request.auth!.user.id, request })
+  response.json({ recoveryCodes })
 })
 
 authRouter.post('/refresh', authLimiter, async (request, response) => {
@@ -53,8 +99,8 @@ authRouter.post('/logout-all', requireAuth, async (request, response) => {
   response.status(204).end()
 })
 
-authRouter.get('/me', requireAuth, (request, response) => {
-  response.json({ user: auth.publicUser(request.auth!.user) })
+authRouter.get('/me', requireAuth, async (request, response) => {
+  response.json({ user: auth.publicUser(request.auth!.user), organisations: await membershipsOf(request.auth!.user.id) })
 })
 
 authRouter.post('/email/verify', authLimiter, async (request, response) => {

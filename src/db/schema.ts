@@ -1,7 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
-
-export const memberRole = pgEnum('member_role', ['Buyer', 'Seller', 'Exporter'])
+import { boolean, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 
 export const staffRole = pgEnum('staff_role', ['support_agent', 'dispute_officer', 'finance_operator', 'risk_officer', 'admin', 'super_admin'])
 
@@ -10,6 +8,18 @@ export const accountStatus = pgEnum('account_status', ['active', 'suspended', 'd
 export const platform = pgEnum('platform', ['web', 'ios', 'android', 'admin'])
 
 export const tokenPurpose = pgEnum('token_purpose', ['email_verification', 'password_reset', 'staff_invite'])
+
+export const locale = pgEnum('locale', ['en', 'fr'])
+
+export const organisationKind = pgEnum('organisation_kind', ['business', 'service_partner'])
+
+export const organisationRole = pgEnum('organisation_role', ['administrator', 'member'])
+
+export const verificationStatus = pgEnum('verification_status', ['unverified', 'pending', 'verified', 'rejected'])
+
+export const organisationStatus = pgEnum('organisation_status', ['active', 'suspended'])
+
+export const region = pgEnum('region', ['north', 'west', 'central', 'east', 'south'])
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -32,7 +42,7 @@ export const users = pgTable(
     phone: text('phone'),
     country: text('country'),
     avatarUrl: text('avatar_url'),
-    role: memberRole('role'),
+    locale: locale('locale').notNull().default('en'),
     staffRole: staffRole('staff_role'),
     status: accountStatus('status').notNull().default('active'),
     statusReason: text('status_reason'),
@@ -41,6 +51,11 @@ export const users = pgTable(
     tokenVersion: integer('token_version').notNull().default(0),
     failedLoginCount: integer('failed_login_count').notNull().default(0),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
+    mfaSecret: text('mfa_secret'),
+    mfaPendingSecret: text('mfa_pending_secret'),
+    mfaEnabledAt: timestamp('mfa_enabled_at', { withTimezone: true }),
+    mfaLastStep: integer('mfa_last_step'),
+    mfaRecoveryCodes: text('mfa_recovery_codes').array().notNull().default(sql`'{}'::text[]`),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
     ...timestamps
@@ -48,7 +63,6 @@ export const users = pgTable(
   table => [
     uniqueIndex('users_email_unique').on(sql`lower(${table.email})`),
     uniqueIndex('users_google_id_unique').on(table.googleId),
-    index('users_role_idx').on(table.role),
     index('users_staff_role_idx').on(table.staffRole),
     index('users_country_idx').on(table.country)
   ]
@@ -107,5 +121,87 @@ export const auditEvents = pgTable(
   table => [index('audit_events_actor_idx').on(table.actorId), index('audit_events_action_idx').on(table.action), index('audit_events_created_idx').on(table.createdAt)]
 )
 
+export const countries = pgTable('countries', {
+  iso2: text('iso2').primaryKey(),
+  name: text('name').notNull(),
+  region: region('region').notNull(),
+  currency: text('currency').notNull(),
+  ecowas: boolean('ecowas').notNull().default(false),
+  afcfta: boolean('afcfta').notNull().default(true),
+  enabled: boolean('enabled').notNull().default(false),
+  pilot: boolean('pilot').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date())
+})
+
+export const organisations = pgTable(
+  'organisations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: organisationKind('kind').notNull().default('business'),
+    name: text('name').notNull(),
+    tradingName: text('trading_name'),
+    types: text('types').array().notNull().default(sql`'{}'::text[]`),
+    registrationNumber: text('registration_number'),
+    taxId: text('tax_id'),
+    country: text('country')
+      .notNull()
+      .references(() => countries.iso2),
+    city: text('city'),
+    address: text('address'),
+    description: text('description'),
+    website: text('website'),
+    email: text('email'),
+    phone: text('phone'),
+    logoUrl: text('logo_url'),
+    verificationStatus: verificationStatus('verification_status').notNull().default('unverified'),
+    verificationNote: text('verification_note'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    verifiedBy: uuid('verified_by').references(() => users.id, { onDelete: 'set null' }),
+    status: organisationStatus('status').notNull().default('active'),
+    statusReason: text('status_reason'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps
+  },
+  table => [index('organisations_country_idx').on(table.country), index('organisations_verification_idx').on(table.verificationStatus), index('organisations_kind_idx').on(table.kind)]
+)
+
+export const organisationMembers = pgTable(
+  'organisation_members',
+  {
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: organisationRole('role').notNull().default('member'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  table => [primaryKey({ columns: [table.organisationId, table.userId] }), index('organisation_members_user_idx').on(table.userId)]
+)
+
+export const organisationInvitations = pgTable(
+  'organisation_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    role: organisationRole('role').notNull().default('member'),
+    tokenHash: text('token_hash').notNull(),
+    invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  table => [uniqueIndex('organisation_invitations_token_unique').on(table.tokenHash), index('organisation_invitations_org_idx').on(table.organisationId)]
+)
+
 export type User = typeof users.$inferSelect
+export type Organisation = typeof organisations.$inferSelect
 export type Session = typeof sessions.$inferSelect

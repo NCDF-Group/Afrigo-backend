@@ -1,19 +1,14 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { api, createStaff, register, reset, sql } from './helpers.js'
+import { api, bearer, createStaff, lastEmailToken, register, reset, sql, totp } from './helpers.js'
 
 beforeEach(reset)
 afterAll(() => sql.end())
 
 describe('member profile', () => {
-  it('updates the profile and selects a trade role once', async () => {
+  it('updates the profile and language', async () => {
     const { tokens } = await register()
-    const auth = { Authorization: `Bearer ${tokens.accessToken}` }
-    const profile = await api().patch('/api/v1/users/me').set(auth).send({ phone: '+2348000000000', country: 'GH' })
-    expect(profile.body.user).toMatchObject({ phone: '+2348000000000', country: 'gh' })
-    expect((await api().put('/api/v1/users/me/role').set(auth).send({ role: 'Seller' })).body.user.role).toBe('Seller')
-    const again = await api().put('/api/v1/users/me/role').set(auth).send({ role: 'Buyer' })
-    expect(again.status).toBe(409)
-    expect(again.body.error.code).toBe('ROLE_LOCKED')
+    const profile = await api().patch('/api/v1/users/me').set(bearer(tokens.accessToken)).send({ phone: '+2348000000000', country: 'GH', locale: 'fr' })
+    expect(profile.body.user).toMatchObject({ phone: '+2348000000000', country: 'gh', locale: 'fr' })
   })
 
   it('deletes an account and anonymises it', async () => {
@@ -54,12 +49,18 @@ describe('staff access', () => {
     const invite = await api().post('/api/v1/admin/staff').set('Authorization', `Bearer ${owner.tokens.accessToken}`).send({ email: 'finance@afrigo.africa', firstName: 'Kojo', lastName: 'Asante', role: 'finance_operator' })
     expect(invite.status).toBe(201)
     expect(invite.body.staff.invitePending).toBe(true)
-    const { lastEmailToken } = await import('./helpers.js')
     const token = lastEmailToken('finance@afrigo.africa')
     expect((await api().post('/api/v1/auth/password/reset').send({ token, password: 'FinancePass789' })).status).toBe(204)
     const login = await api().post('/api/v1/auth/login').send({ email: 'finance@afrigo.africa', password: 'FinancePass789', platform: 'admin' })
-    expect(login.status).toBe(200)
-    expect(login.body.user.capabilities).toContain('payouts:execute')
+    expect(login.body.mfaSetupRequired).toBe(true)
+    expect(login.body).not.toHaveProperty('tokens')
+    const setup = await api().post('/api/v1/auth/mfa/setup').send({ mfaToken: login.body.mfaToken })
+    expect(setup.body.otpauthUrl).toContain('otpauth://totp/')
+    const enabled = await api().post('/api/v1/auth/mfa/enable').send({ mfaToken: login.body.mfaToken, code: totp(setup.body.secret) })
+    expect(enabled.status).toBe(200)
+    expect(enabled.body.recoveryCodes).toHaveLength(10)
+    expect(enabled.body.user.capabilities).toContain('payouts:execute')
+    expect(enabled.body.user.mfaEnabled).toBe(true)
   })
 
   it('keeps at least one super administrator and records an audit trail', async () => {
@@ -71,5 +72,6 @@ describe('staff access', () => {
     const trail = await api().get('/api/v1/admin/audit').set('Authorization', `Bearer ${owner.tokens.accessToken}`)
     expect(trail.status).toBe(200)
     expect(trail.body.items.some((item: { action: string }) => item.action === 'auth.login')).toBe(true)
+    expect((await api().post(`/api/v1/admin/staff/${admin.user.id}/reset-mfa`).set(bearer(owner.tokens.accessToken))).status).toBe(204)
   })
 })

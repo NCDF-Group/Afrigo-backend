@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import compression from 'compression'
 import cors from 'cors'
 import express from 'express'
 import helmet from 'helmet'
@@ -8,7 +9,9 @@ import { logger } from './lib/logger.js'
 import { errorHandler, notFoundHandler } from './middleware/errors.js'
 import { globalLimiter } from './middleware/rate-limit.js'
 import { authRouter } from './modules/auth/auth.routes.js'
+import { adminConfigRouter, configRouter } from './modules/config/config.routes.js'
 import { healthRouter } from './modules/health/health.routes.js'
+import { adminOrganisationsRouter, organisationsRouter } from './modules/organisations/organisations.routes.js'
 import { auditRouter, staffRouter } from './modules/staff/staff.routes.js'
 import { adminUsersRouter, usersRouter } from './modules/users/users.routes.js'
 
@@ -34,6 +37,7 @@ export function createApp() {
     })
   )
   app.use(helmet())
+  app.use(compression())
   app.use(
     cors({
       origin: (origin, callback) => callback(null, !origin || env.CORS_ORIGINS.includes(origin) || (!isProduction && /^http:\/\/localhost:\d+$/.test(origin))),
@@ -47,16 +51,20 @@ export function createApp() {
   app.use(globalLimiter)
 
   app.get('/', (_request, response) => {
-    response.json({ name: 'Afrigo API', version: '1', docs: 'https://github.com/NCDF-Group/Afrigo-backend#api-reference' })
+    response.json({ name: 'AfriGoOS API', version: '1', docs: 'https://github.com/NCDF-Group/Afrigo-backend#api-reference' })
   })
 
   const api = express.Router()
   api.use('/health', healthRouter)
   api.use('/auth', authRouter)
+  api.use('/config', configRouter)
   api.use('/users', usersRouter)
+  api.use('/organisations', organisationsRouter)
   api.use('/admin/users', adminUsersRouter)
   api.use('/admin/staff', staffRouter)
   api.use('/admin/audit', auditRouter)
+  api.use('/admin/organisations', adminOrganisationsRouter)
+  api.use('/admin/config', adminConfigRouter)
   app.use('/api/v1', api)
 
   app.use(notFoundHandler)

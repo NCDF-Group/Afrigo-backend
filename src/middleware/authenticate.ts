@@ -22,7 +22,7 @@ async function resolve(request: Request) {
     .where(eq(users.id, claims.sub))
     .limit(1)
   if (!row || row.user.tokenVersion !== claims.tv) throw unauthorized('SESSION_EXPIRED', 'Your session has expired. Sign in again.')
-  if (row.user.status !== 'active') throw forbidden('ACCOUNT_SUSPENDED', 'This account has been suspended. Contact Afrigo support.')
+  if (row.user.status !== 'active') throw forbidden('ACCOUNT_SUSPENDED', 'This account has been suspended. Contact AfriGoOS support.')
   if (!row.user.lastActiveAt || Date.now() - row.user.lastActiveAt.getTime() > ACTIVITY_INTERVAL) {
     db.update(users)
       .set({ lastActiveAt: new Date() })
@@ -43,7 +43,7 @@ export function requireStaff(capability?: Capability) {
   return async (request: Request, response: Response, next: NextFunction) => {
     await requireAuth(request, response, () => {})
     const role = request.auth!.user.staffRole
-    if (!role) throw forbidden('STAFF_ONLY', 'This area is for Afrigo staff only.')
+    if (!role) throw forbidden('STAFF_ONLY', 'This area is for AfriGoOS staff only.')
     if (capability && !can(role, capability)) throw forbidden()
     next()
   }
