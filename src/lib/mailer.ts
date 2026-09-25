@@ -22,7 +22,23 @@ function smtpTransport() {
   return smtp
 }
 
-export const emailProvider = () => (env.SMTP_HOST ? 'smtp' : env.RESEND_API_KEY ? 'resend' : 'log')
+export const emailProvider = () => (env.SMTP_HOST ? 'smtp' : env.BREVO_API_KEY ? 'brevo' : env.RESEND_API_KEY ? 'resend' : 'log')
+
+export function parseSender(value: string) {
+  const match = value.match(/^\s*(.*?)\s*<([^>]+)>\s*$/)
+  return match ? { name: match[1].replace(/^"|"$/g, '') || undefined, email: match[2].trim() } : { email: value.trim() }
+}
+
+export const brevoPayload = (mail: Mail, from: string) => ({ sender: parseSender(from), to: [{ email: mail.to }], subject: mail.subject, htmlContent: mail.html, textContent: mail.text })
+
+async function sendWithBrevo(mail: Mail, apiKey: string) {
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(brevoPayload(mail, env.EMAIL_FROM))
+  })
+  if (!response.ok) logger.error({ to: mail.to, status: response.status, body: await response.text() }, 'Email delivery failed')
+}
 
 async function deliver(mail: Mail) {
   if (env.NODE_ENV === 'test') {
@@ -31,6 +47,10 @@ async function deliver(mail: Mail) {
   }
   if (env.SMTP_HOST) {
     await smtpTransport().sendMail({ from: env.EMAIL_FROM, to: mail.to, subject: mail.subject, html: mail.html, text: mail.text })
+    return
+  }
+  if (env.BREVO_API_KEY) {
+    await sendWithBrevo(mail, env.BREVO_API_KEY)
     return
   }
   if (!env.RESEND_API_KEY) {

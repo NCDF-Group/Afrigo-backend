@@ -138,7 +138,8 @@ Run the tests with `npm test`. They rebuild the `afrigo_test` database each run.
 | `WEB_APP_URL` | Production | Base for verification, reset and colleague invitation links |
 | `ADMIN_APP_URL` | Production | Base for administrator invitation and reset links |
 | `RESEND_API_KEY` | Production | Sends email through Resend. Without any provider, development prints emails to the log |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE` | Optional | Sends email through any SMTP service (Mailtrap, Brevo, Mailjet, Gmail). When `SMTP_HOST` is set it is used instead of Resend |
+| `BREVO_API_KEY` | Optional | Sends email through the Brevo API over HTTPS. Works on Render free plans |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE` | Optional | Sends email through any SMTP service (Mailtrap, Brevo, Mailjet, Gmail). When `SMTP_HOST` is set it is used instead of Brevo or Resend |
 | `EMAIL_FROM` | No | Sender, default `AfriGoOS <no-reply@afrigo.africa>` |
 | `GOOGLE_CLIENT_IDS` | Optional | Enables Google sign in |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME` | Once | First super administrator. Password 12+ characters |
@@ -367,8 +368,13 @@ The backend is done for release one when these pass end to end:
 The API picks a provider automatically:
 
 1. `SMTP_HOST` set: sends over SMTP.
-2. Otherwise `RESEND_API_KEY` set: sends through Resend.
-3. Otherwise: prints emails to the log (development only).
+2. Otherwise `BREVO_API_KEY` set: sends through the Brevo API.
+3. Otherwise `RESEND_API_KEY` set: sends through Resend.
+4. Otherwise: prints emails to the log (development only).
+
+Render free web services block outgoing SMTP on ports 25, 465 and 587, so on free plans use Brevo or Resend (both use HTTPS) or Mailtrap on port 2525.
+
+**Staging with real inboxes: Brevo.** In Brevo, add and confirm a sender under **Senders, Domains and Dedicated IPs**, then create an API key under **SMTP and API**, **API Keys**. Set `BREVO_API_KEY` and `EMAIL_FROM` to that sender, for example `AfriGoOS <odarafounder@gmail.com>`. The free plan allows 300 emails a day to any address. A free Gmail sender may land in spam or be blocked by Gmail, Yahoo and Outlook; a verified domain fixes that.
 
 **Testing with many accounts, no domain needed.** Create a free Mailtrap account, open **Email Testing**, then **Inboxes**, pick your inbox and copy its SMTP credentials:
 

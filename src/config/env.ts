@@ -37,6 +37,7 @@ const schema = z.object({
   ADMIN_APP_URL: z.url().default('http://localhost:3100'),
   EMAIL_FROM: z.string().default('AfriGoOS <no-reply@afrigo.africa>'),
   RESEND_API_KEY: optional,
+  BREVO_API_KEY: optional,
   SMTP_HOST: optional,
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_USER: optional,
