@@ -137,7 +137,8 @@ Run the tests with `npm test`. They rebuild the `afrigo_test` database each run.
 | `CORS_ORIGINS` | Production | Browser origins allowed to call the API, comma separated |
 | `WEB_APP_URL` | Production | Base for verification, reset and colleague invitation links |
 | `ADMIN_APP_URL` | Production | Base for administrator invitation and reset links |
-| `RESEND_API_KEY` | Production | Sends email. Without it, development prints emails to the log |
+| `RESEND_API_KEY` | Production | Sends email through Resend. Without any provider, development prints emails to the log |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE` | Optional | Sends email through any SMTP service (Mailtrap, Brevo, Mailjet, Gmail). When `SMTP_HOST` is set it is used instead of Resend |
 | `EMAIL_FROM` | No | Sender, default `AfriGoOS <no-reply@afrigo.africa>` |
 | `GOOGLE_CLIENT_IDS` | Optional | Enables Google sign in |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME` | Once | First super administrator. Password 12+ characters |
@@ -329,7 +330,8 @@ The 12 ECOWAS members are open by default: Benin, Cabo Verde, Côte d'Ivoire, Th
 | --- | --- | --- |
 | Render account | API and Postgres hosting | Now |
 | Domain and DNS | `api.afrigo.africa` and a verified email sending domain | Now |
-| Resend | Verification, reset, invitation and review emails | Now |
+| Resend | Verification, reset, invitation and review emails. Needs a verified domain to email anyone | Now |
+| Mailtrap Email Testing | Catches every email in a test inbox during development and staging, no domain needed | Testing |
 | Authenticator app for each administrator | Mandatory administrator MFA | Now |
 | Google Cloud OAuth client ids | Google sign in, if kept | Optional |
 | Object storage (Cloudflare R2 or AWS S3, private bucket) | Business documents, origin evidence, product images | Documents module |
@@ -359,3 +361,25 @@ The backend is done for release one when these pass end to end:
 1. A business registers and publishes a product or buyer request.
 2. Users exchange an enquiry, open a trade case, upload documents and track tasks.
 3. Administrators manage the journey securely, with access controls verified.
+
+## Email providers
+
+The API picks a provider automatically:
+
+1. `SMTP_HOST` set: sends over SMTP.
+2. Otherwise `RESEND_API_KEY` set: sends through Resend.
+3. Otherwise: prints emails to the log (development only).
+
+**Testing with many accounts, no domain needed.** Create a free Mailtrap account, open **Email Testing**, then **Inboxes**, pick your inbox and copy its SMTP credentials:
+
+```
+SMTP_HOST=sandbox.smtp.mailtrap.io
+SMTP_PORT=2525
+SMTP_USER=<from Mailtrap>
+SMTP_PASS=<from Mailtrap>
+EMAIL_FROM=AfriGoOS <no-reply@afrigo.africa>
+```
+
+Every email, to any address, appears in that Mailtrap inbox and is never delivered to a real person.
+
+**Real users.** Verify a domain you own in Resend (or Brevo), add the DNS records it gives you, remove the `SMTP_*` variables if they are set, and send from that domain, for example `AfriGoOS <no-reply@mail.afrigo.africa>`. Sending from a free address such as Gmail is blocked or sent to spam by Gmail, Yahoo and Outlook.

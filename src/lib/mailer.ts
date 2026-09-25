@@ -1,3 +1,4 @@
+import nodemailer, { type Transporter } from 'nodemailer'
 import { env, isProduction } from '../config/env.js'
 import { logger } from './logger.js'
 
@@ -9,13 +10,31 @@ const sent: Mail[] = []
 
 export const testOutbox = { messages: sent, clear: () => sent.splice(0, sent.length) }
 
+let smtp: Transporter | null = null
+
+function smtpTransport() {
+  smtp ??= nodemailer.createTransport({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_SECURE ? env.SMTP_SECURE === 'true' : env.SMTP_PORT === 465,
+    auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined
+  })
+  return smtp
+}
+
+export const emailProvider = () => (env.SMTP_HOST ? 'smtp' : env.RESEND_API_KEY ? 'resend' : 'log')
+
 async function deliver(mail: Mail) {
   if (env.NODE_ENV === 'test') {
     sent.push(mail)
     return
   }
+  if (env.SMTP_HOST) {
+    await smtpTransport().sendMail({ from: env.EMAIL_FROM, to: mail.to, subject: mail.subject, html: mail.html, text: mail.text })
+    return
+  }
   if (!env.RESEND_API_KEY) {
-    if (isProduction) logger.error({ to: mail.to, subject: mail.subject }, 'Email not sent: RESEND_API_KEY is missing')
+    if (isProduction) logger.error({ to: mail.to, subject: mail.subject }, 'Email not sent: no email provider is set')
     else logger.info({ to: mail.to, subject: mail.subject, text: mail.text }, 'Email (development outbox)')
     return
   }
