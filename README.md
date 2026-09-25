@@ -307,11 +307,17 @@ The website and console need these pages, each posting the `token` query value b
 2. In Render choose **New**, **Blueprint**, and select this repository. `render.yaml` creates the `afrigo-db` database and the `afrigo-api` service.
 3. Fill in the prompted values: `CORS_ORIGINS`, `WEB_APP_URL`, `ADMIN_APP_URL`, `RESEND_API_KEY` and the `SEED_ADMIN_*` values.
 4. Deploy. Each start applies migrations first.
-5. Open the service **Shell** and run `npm run db:seed:admin:prod` once.
+5. Create the first super administrator once: run `npm run db:seed:admin:prod` from the service **Shell** on paid plans, or the command below from your machine on free plans.
 6. Sign in to the console, enrol MFA, then delete `SEED_ADMIN_PASSWORD` from the environment.
 7. Add `api.afrigo.africa` as a custom domain.
 
-The blueprint uses the Starter web plan and Basic Postgres in Frankfurt, the nearest Render region to West Africa. Use a staging deploy first. Render free plans are fine for testing, but free web services sleep and free databases expire after 30 days.
+The blueprint currently uses Render's **free** plans in Frankfurt, the nearest Render region to West Africa, for staging. Free plans have limits: the web service sleeps after 15 minutes idle (the first request then takes about a minute), the database is deleted after 30 days, and there is no Shell or backups. On free plans, run the admin seed from your own machine with the database's External URL:
+
+```bash
+DATABASE_URL="<External Database URL from Render>" npm run db:seed:admin
+```
+
+Before the pilot, change both `plan: free` lines to `plan: starter` (web) and `plan: basic-256mb` (database) for always on service, Shell access and daily backups.
 
 ## Pilot markets
 

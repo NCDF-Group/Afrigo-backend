@@ -2,7 +2,7 @@ databases:
   - name: afrigo-db
     databaseName: afrigo
     user: afrigo
-    plan: basic-256mb
+    plan: free
     region: frankfurt
     postgresMajorVersion: "17"
 
@@ -11,7 +11,7 @@ services:
     name: afrigo-api
     runtime: node
     region: frankfurt
-    plan: starter
+    plan: free
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start:render
     healthCheckPath: /api/v1/health/ready
