@@ -142,6 +142,7 @@ Run the tests with `npm test`. They rebuild the `afrigo_test` database each run.
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE` | Optional | Sends email through any SMTP service (Mailtrap, Brevo, Mailjet, Gmail). When `SMTP_HOST` is set it is used instead of Brevo or Resend |
 | `EMAIL_FROM` | No | Sender, default `AfriGoOS <no-reply@afrigo.africa>` |
 | `GOOGLE_CLIENT_IDS` | Optional | Enables Google sign in |
+| `TRUSTED_PROXY_SECRET` | With the website | Shared secret the website server sends with each visitor's real IP, so rate limits and the activity log see visitors instead of the website server. Set the same value as `BACKEND_PROXY_SECRET` on the website |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME` | Once | First super administrator. Password 12+ characters |
 | `NODE_ENV`, `PORT`, `LOG_LEVEL` | No | Runtime settings |
 | `DATABASE_SSL`, `DATABASE_POOL_SIZE` | No | Connection tuning |

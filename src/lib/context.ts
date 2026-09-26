@@ -1,4 +1,5 @@
 import type { Request } from 'express'
+import { clientIp } from './client-ip.js'
 import { PLATFORMS, type Platform } from './roles.js'
 import type { ClientContext } from '../modules/auth/auth.service.js'
 
@@ -9,6 +10,6 @@ export function clientContext(request: Request): ClientContext {
     platform: (PLATFORMS as readonly string[]).includes(platform ?? '') ? (platform as Platform) : undefined,
     appVersion: appVersion && /^\d+\.\d+\.\d+$/.test(appVersion) ? appVersion : undefined,
     userAgent: request.get('user-agent'),
-    ipAddress: request.ip
+    ipAddress: clientIp(request)
   }
 }

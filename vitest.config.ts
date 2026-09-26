@@ -12,6 +12,7 @@ export default defineConfig({
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? 'postgres://localhost:5432/afrigo_test',
       JWT_ACCESS_SECRET: 'test-secret-that-is-long-enough-for-hs256-signing',
       ENCRYPTION_KEY: 'test-encryption-key-that-is-long-enough-to-use',
+      TRUSTED_PROXY_SECRET: 'proxy-secret-for-tests',
       CORS_ORIGINS: 'http://localhost:3000'
     }
   }
