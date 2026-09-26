@@ -1,10 +1,12 @@
 import { createApp } from './app.js'
 import { env } from './config/env.js'
 import { sql } from './db/client.js'
+import { startKeepAlive } from './lib/keepalive.js'
 import { logger } from './lib/logger.js'
 
 const server = createApp().listen(env.PORT, '0.0.0.0', () => {
   logger.info(`AfriGoOS API listening on port ${env.PORT}`)
+  startKeepAlive()
 })
 
 function shutdown(signal: string) {

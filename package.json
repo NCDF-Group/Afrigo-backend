@@ -19,7 +19,8 @@
     "db:studio": "drizzle-kit studio",
     "db:migrate:prod": "node dist/db/migrate.js",
     "db:seed:admin:prod": "node dist/db/seed-admin.js",
-    "start:render": "npm run db:migrate:prod && npm start"
+    "start:render": "npm run db:migrate:prod && npm start",
+    "keepalive": "node scripts/keepalive.mjs"
   },
   "dependencies": {
     "compression": "^1.8.2",

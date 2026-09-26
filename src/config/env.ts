@@ -50,7 +50,10 @@ const schema = z.object({
   S3_ACCESS_KEY_ID: optional,
   S3_SECRET_ACCESS_KEY: optional,
   REDIS_URL: optional,
-  SENTRY_DSN: optional
+  SENTRY_DSN: optional,
+  KEEPALIVE_URL: optional,
+  RENDER_EXTERNAL_URL: optional,
+  KEEPALIVE_INTERVAL_SECONDS: z.coerce.number().int().min(0).default(15)
 })
 
 export type Env = z.infer<typeof schema>

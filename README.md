@@ -389,3 +389,14 @@ EMAIL_FROM=AfriGoOS <no-reply@afrigo.africa>
 Every email, to any address, appears in that Mailtrap inbox and is never delivered to a real person.
 
 **Real users.** Verify a domain you own in Resend (or Brevo), add the DNS records it gives you, remove the `SMTP_*` variables if they are set, and send from that domain, for example `AfriGoOS <no-reply@mail.afrigo.africa>`. Sending from a free address such as Gmail is blocked or sent to spam by Gmail, Yahoo and Outlook.
+
+## Keeping the free Render service awake
+
+Render free web services sleep after 15 minutes without traffic. In production the API pings its own public address (`RENDER_EXTERNAL_URL`, set by Render automatically) at `/api/v1/health/live` every 15 seconds from the moment it starts, so it never goes idle. It only wakes the web service, not the database.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `KEEPALIVE_INTERVAL_SECONDS` | `15` | Seconds between pings. `0` turns it off |
+| `KEEPALIVE_URL` | Render's own URL | Ping a different address instead |
+
+It is off in local development. To wake the deployed server from your own machine instead, run `npm run keepalive`. Turn the self ping off (`KEEPALIVE_INTERVAL_SECONDS=0`) after moving to a paid plan, which never sleeps.
