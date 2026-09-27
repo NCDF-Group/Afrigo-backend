@@ -4,6 +4,16 @@ import { api, bearer, business, createStaff, lastEmailToken, register, reset, sq
 beforeEach(reset)
 afterAll(() => sql.end())
 
+const PDF = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(64, 32)])
+
+function upload(organisationId: string, token: string, content = PDF, type = 'application/pdf') {
+  return api()
+    .post(`/api/v1/organisations/${organisationId}/documents?kind=registration_certificate&fileName=cac.pdf`)
+    .set(bearer(token))
+    .set('Content-Type', type)
+    .send(content)
+}
+
 async function owner() {
   const { tokens } = await register('ada@example.com')
   const created = await api().post('/api/v1/organisations').set(bearer(tokens.accessToken)).send(business)
@@ -33,6 +43,9 @@ describe('business profiles', () => {
 
   it('submits for verification and an administrator reviews it', async () => {
     const { organisationId, token } = await owner()
+    const empty = await api().post(`/api/v1/organisations/${organisationId}/verification`).set(bearer(token))
+    expect(empty.body.error.code).toBe('DOCUMENTS_REQUIRED')
+    await upload(organisationId, token)
     const submitted = await api().post(`/api/v1/organisations/${organisationId}/verification`).set(bearer(token))
     expect(submitted.body.organisation.verificationStatus).toBe('pending')
     const risk = await createStaff('risk@afrigo.africa', 'risk_officer')
@@ -91,5 +104,69 @@ describe('configuration', () => {
     const admin = await createStaff('admin@afrigo.africa', 'admin')
     const opened = await api().patch('/api/v1/admin/config/countries/ke').set(bearer(admin.tokens.accessToken)).send({ enabled: true })
     expect(opened.body.country.enabled).toBe(true)
+  })
+})
+
+describe('documents', () => {
+  it('uploads, lists and serves a document to its business', async () => {
+    const { organisationId, token } = await owner()
+    const uploaded = await upload(organisationId, token)
+    expect(uploaded.status).toBe(201)
+    expect(uploaded.body.document).toMatchObject({ kind: 'registration_certificate', fileName: 'cac.pdf', status: 'pending' })
+    const list = await api().get(`/api/v1/organisations/${organisationId}/documents`).set(bearer(token))
+    expect(list.body.items).toHaveLength(1)
+    const file = await api().get(`/api/v1/organisations/${organisationId}/documents/${uploaded.body.document.id}/file`).set(bearer(token))
+    expect(file.headers['content-type']).toContain('application/pdf')
+    const stranger = await register('stranger@example.com')
+    expect((await api().get(`/api/v1/organisations/${organisationId}/documents`).set(bearer(stranger.tokens.accessToken))).status).toBe(404)
+  })
+
+  it('rejects files whose content does not match their type', async () => {
+    const { organisationId, token } = await owner()
+    const response = await upload(organisationId, token, Buffer.from('not really a pdf file at all'))
+    expect(response.status).toBe(400)
+  })
+
+  it('lets a risk officer review documents', async () => {
+    const { organisationId, token } = await owner()
+    const uploaded = await upload(organisationId, token)
+    const risk = await createStaff('risk@afrigo.africa', 'risk_officer')
+    const queue = await api().get('/api/v1/admin/documents?status=pending').set(bearer(risk.tokens.accessToken))
+    expect(queue.body.items).toEqual([expect.objectContaining({ id: uploaded.body.document.id, organisationName: 'Okafor Agro Ltd' })])
+    const detail = await api().get(`/api/v1/admin/organisations/${organisationId}`).set(bearer(risk.tokens.accessToken))
+    expect(detail.body.documents).toHaveLength(1)
+    const file = await api().get(`/api/v1/admin/documents/${uploaded.body.document.id}/file`).set(bearer(risk.tokens.accessToken))
+    expect(file.status).toBe(200)
+    const missingNote = await api().post(`/api/v1/admin/documents/${uploaded.body.document.id}/review`).set(bearer(risk.tokens.accessToken)).send({ decision: 'reject' })
+    expect(missingNote.status).toBe(400)
+    const approved = await api().post(`/api/v1/admin/documents/${uploaded.body.document.id}/review`).set(bearer(risk.tokens.accessToken)).send({ decision: 'approve' })
+    expect(approved.body.document.status).toBe('approved')
+  })
+})
+
+describe('admin member management', () => {
+  it('removes a member from a business', async () => {
+    const { organisationId, token } = await owner()
+    await api().post(`/api/v1/organisations/${organisationId}/invitations`).set(bearer(token)).send({ email: 'kofi@example.com' })
+    const inviteToken = lastEmailToken('kofi@example.com')
+    const colleague = await register('kofi@example.com')
+    await api().post('/api/v1/organisations/invitations/accept').set(bearer(colleague.tokens.accessToken)).send({ token: inviteToken })
+    const risk = await createStaff('risk@afrigo.africa', 'risk_officer')
+    const removed = await api().delete(`/api/v1/admin/organisations/${organisationId}/members/${colleague.user.id}`).set(bearer(risk.tokens.accessToken))
+    expect(removed.status).toBe(200)
+    expect(removed.body.members).toHaveLength(1)
+    const support = await createStaff('support@afrigo.africa', 'support_agent')
+    const blocked = await api().delete(`/api/v1/admin/organisations/${organisationId}/members/${colleague.user.id}`).set(bearer(support.tokens.accessToken))
+    expect(blocked.status).toBe(403)
+  })
+
+  it('reports platform statistics', async () => {
+    await owner()
+    const support = await createStaff('support@afrigo.africa', 'support_agent')
+    const stats = await api().get('/api/v1/admin/stats').set(bearer(support.tokens.accessToken))
+    expect(stats.status).toBe(200)
+    expect(stats.body.totals).toMatchObject({ users: 1, businesses: 1, unverifiedBusinesses: 1 })
+    expect(stats.body.signups).toHaveLength(30)
+    expect(stats.body.countries.find((country: { iso2: string }) => country.iso2 === 'ng')).toMatchObject({ users: 1, businesses: 1 })
   })
 })

@@ -20,7 +20,8 @@ export const listUsersSchema = pageSchema.extend({
   country: z.string().trim().length(2).toLowerCase().optional(),
   status: z.enum(['active', 'suspended', 'deleted']).optional(),
   platform: z.enum(['web', 'ios', 'android']).optional(),
-  verified: z.enum(['true', 'false']).optional()
+  verified: z.enum(['true', 'false']).optional(),
+  joined: z.enum(['1d', '7d', '30d']).optional()
 })
 
 export const adminActionSchema = z.discriminatedUnion('action', [
@@ -28,5 +29,6 @@ export const adminActionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('reactivate') }),
   z.object({ action: z.literal('revoke-sessions') }),
   z.object({ action: z.literal('verify-email') }),
-  z.object({ action: z.literal('reset-mfa') })
+  z.object({ action: z.literal('reset-mfa') }),
+  z.object({ action: z.literal('delete'), confirm: z.literal('DELETE', { error: 'Type DELETE to confirm.' }) })
 ])

@@ -41,6 +41,26 @@ describe('admin member management', () => {
     const login = await api().post('/api/v1/auth/login').send({ email: 'ada@example.com', password: 'Password123' })
     expect(login.body.error.code).toBe('ACCOUNT_SUSPENDED')
   })
+
+  it('verifies an email and deletes an account from the console', async () => {
+    const member = await register()
+    const risk = await createStaff('risk@afrigo.africa', 'risk_officer')
+    const auth = { Authorization: `Bearer ${risk.tokens.accessToken}` }
+    const verified = await api().post(`/api/v1/admin/users/${member.user.id}/actions`).set(auth).send({ action: 'verify-email' })
+    expect(verified.body.user.emailVerified).toBe(true)
+    const detail = await api().get(`/api/v1/admin/users/${member.user.id}`).set(auth)
+    expect(detail.body.user.organisations).toEqual([])
+    const unconfirmed = await api().post(`/api/v1/admin/users/${member.user.id}/actions`).set(auth).send({ action: 'delete' })
+    expect(unconfirmed.status).toBe(400)
+    const deleted = await api().post(`/api/v1/admin/users/${member.user.id}/actions`).set(auth).send({ action: 'delete', confirm: 'DELETE' })
+    expect(deleted.status).toBe(200)
+    const login = await api().post('/api/v1/auth/login').send({ email: 'ada@example.com', password: 'Password123' })
+    expect(login.status).toBe(401)
+    const list = await api().get('/api/v1/admin/users').set(auth)
+    expect(list.body.total).toBe(0)
+    const recent = await api().get('/api/v1/admin/users?status=deleted&joined=1d').set(auth)
+    expect(recent.body.total).toBe(1)
+  })
 })
 
 describe('staff access', () => {

@@ -10,7 +10,9 @@ import { errorHandler, notFoundHandler } from './middleware/errors.js'
 import { globalLimiter } from './middleware/rate-limit.js'
 import { authRouter } from './modules/auth/auth.routes.js'
 import { adminConfigRouter, configRouter } from './modules/config/config.routes.js'
+import { adminDocumentsRouter, organisationDocumentsRouter } from './modules/documents/documents.routes.js'
 import { healthRouter } from './modules/health/health.routes.js'
+import { statsRouter } from './modules/stats/stats.routes.js'
 import { adminOrganisationsRouter, organisationsRouter } from './modules/organisations/organisations.routes.js'
 import { auditRouter, staffRouter } from './modules/staff/staff.routes.js'
 import { adminUsersRouter, usersRouter } from './modules/users/users.routes.js'
@@ -59,12 +61,15 @@ export function createApp() {
   api.use('/auth', authRouter)
   api.use('/config', configRouter)
   api.use('/users', usersRouter)
+  api.use('/organisations/:id/documents', organisationDocumentsRouter)
   api.use('/organisations', organisationsRouter)
   api.use('/admin/users', adminUsersRouter)
   api.use('/admin/staff', staffRouter)
   api.use('/admin/audit', auditRouter)
   api.use('/admin/organisations', adminOrganisationsRouter)
   api.use('/admin/config', adminConfigRouter)
+  api.use('/admin/documents', adminDocumentsRouter)
+  api.use('/admin/stats', statsRouter)
   app.use('/api/v1', api)
 
   app.use(notFoundHandler)

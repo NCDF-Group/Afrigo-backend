@@ -12,6 +12,10 @@ export function errorHandler(error: unknown, request: Request, response: Respons
     response.status(error.status).json({ error: { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) }, requestId })
     return
   }
+  if (typeof error === 'object' && error && 'type' in error && error.type === 'entity.too.large') {
+    response.status(413).json({ error: { code: 'FILE_TOO_LARGE', message: 'Files must be 10 MB or smaller.' }, requestId })
+    return
+  }
   if (error instanceof SyntaxError && 'body' in error) {
     response.status(400).json({ error: { code: 'INVALID_JSON', message: 'The request body is not valid JSON.' }, requestId })
     return

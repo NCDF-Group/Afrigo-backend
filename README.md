@@ -264,7 +264,11 @@ Branch on `code`; `message` is safe to show to users. Paged lists return `{ item
 | GET | `/organisations/mine` | Signed in | |
 | GET | `/organisations/:id` | Member | |
 | PATCH | `/organisations/:id` | Administrator | Any profile field. Changing name, registration, tax id or country clears a verified badge |
-| POST | `/organisations/:id/verification` | Administrator | Submits for review. Needs a registration number |
+| POST | `/organisations/:id/verification` | Administrator | Submits for review. Needs a registration number and at least one document |
+| GET | `/organisations/:id/documents` | Member | Lists the business's documents |
+| POST | `/organisations/:id/documents?kind=&fileName=` | Member | Raw file body with `Content-Type` `application/pdf`, `image/png` or `image/jpeg`, up to 10 MB. Kinds: `registration_certificate`, `tax_certificate`, `director_id`, `proof_of_address`, `export_licence`, `other` |
+| GET | `/organisations/:id/documents/:documentId/file` | Member | Streams the file, `?download=1` to download |
+| DELETE | `/organisations/:id/documents/:documentId` | Member | Approved documents need an administrator |
 | GET | `/organisations/:id/members` | Member | |
 | PATCH | `/organisations/:id/members/:userId` | Administrator | `role` |
 | DELETE | `/organisations/:id/members/:userId` | Administrator, or yourself to leave | |
@@ -280,17 +284,22 @@ A business must always keep one administrator. Businesses can only register in c
 | Method | Path | Capability | Body or query |
 | --- | --- | --- | --- |
 | GET | `/admin/organisations` | `risk:read` | `q, kind, country, verificationStatus, status, page, pageSize` |
-| GET | `/admin/organisations/:id` | `risk:read` | |
+| GET | `/admin/organisations/:id` | `risk:read` | Returns the business, its people and its documents |
+| DELETE | `/admin/organisations/:id/members/:userId` | `users:manage` | Removes a person from a business |
 | POST | `/admin/organisations/:id/review` | `compliance:review` | `decision: "verify"` or `decision: "reject", note` |
 | POST | `/admin/organisations/:id/status` | `users:manage` | `action: "suspend", reason` or `action: "reactivate"` |
-| GET | `/admin/users` | `users:read` | `q, country, status, platform, verified, page, pageSize` |
+| GET | `/admin/users` | `users:read` | `q, country, status, platform, verified, joined (1d, 7d, 30d), page, pageSize`. Deleted accounts only appear with `status=deleted` |
 | GET | `/admin/users/:id` | `users:read` | |
-| POST | `/admin/users/:id/actions` | `users:manage` | `suspend` with `reason`, `reactivate`, `revoke-sessions`, `verify-email`, `reset-mfa` |
+| POST | `/admin/users/:id/actions` | `users:manage` | `suspend` with `reason`, `reactivate`, `revoke-sessions`, `verify-email`, `reset-mfa`, `delete` with `confirm: "DELETE"` |
 | GET | `/admin/staff` | `staff:manage` | |
 | POST | `/admin/staff` | `staff:manage` | `email, firstName, lastName, role` |
 | PATCH | `/admin/staff/:id` | `staff:manage` | `role`, or `null` to revoke |
 | POST | `/admin/staff/:id/reset-mfa` | `staff:manage` | |
 | GET | `/admin/audit` | `staff:manage` | `action?, page, pageSize` |
+| GET | `/admin/stats` | `analytics:read` | Totals, per country figures, 30 day sign ups, platform split and recent activity |
+| GET | `/admin/documents` | `risk:read` | `status?, organisationId?, page, pageSize` |
+| GET | `/admin/documents/:id/file` | `risk:read` | Streams the file. Every view is audited |
+| POST | `/admin/documents/:id/review` | `compliance:review` | `decision: "approve"` or `decision: "reject", note` |
 | PATCH | `/admin/config/countries/:iso2` | `apps:manage` | `enabled?, pilot?, currency?` |
 
 ### Links in emails

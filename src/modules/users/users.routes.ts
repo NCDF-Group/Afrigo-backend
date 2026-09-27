@@ -37,6 +37,6 @@ adminUsersRouter.post('/:id/actions', requireStaff('users:manage'), async (reque
   const { id } = parse(idSchema, request.params)
   const input = parse(adminActionSchema, request.body)
   const result = await usersService.applyAdminAction(request.auth!.user, id, input)
-  await audit({ actorId: request.auth!.user.id, action: `admin.user.${input.action}`, targetType: 'user', targetId: id, metadata: input, request })
+  await audit({ actorId: request.auth!.user.id, action: `admin.user.${input.action}`, targetType: 'user', targetId: id, metadata: { action: input.action, reason: 'reason' in input ? input.reason : null }, request })
   response.json(result)
 })

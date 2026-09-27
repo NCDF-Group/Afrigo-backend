@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { boolean, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 
 export const staffRole = pgEnum('staff_role', ['support_agent', 'dispute_officer', 'finance_operator', 'risk_officer', 'admin', 'super_admin'])
 
@@ -18,6 +18,12 @@ export const organisationRole = pgEnum('organisation_role', ['administrator', 'm
 export const verificationStatus = pgEnum('verification_status', ['unverified', 'pending', 'verified', 'rejected'])
 
 export const organisationStatus = pgEnum('organisation_status', ['active', 'suspended'])
+
+export const documentKind = pgEnum('document_kind', ['registration_certificate', 'tax_certificate', 'director_id', 'proof_of_address', 'export_licence', 'other'])
+
+export const documentStatus = pgEnum('document_status', ['pending', 'approved', 'rejected'])
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' })
 
 export const region = pgEnum('region', ['north', 'west', 'central', 'east', 'south'])
 
@@ -200,6 +206,29 @@ export const organisationInvitations = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
   },
   table => [uniqueIndex('organisation_invitations_token_unique').on(table.tokenHash), index('organisation_invitations_org_idx').on(table.organisationId)]
+)
+
+export const documents = pgTable(
+  'documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    uploadedBy: uuid('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+    kind: documentKind('kind').notNull(),
+    fileName: text('file_name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256').notNull(),
+    content: bytea('content').notNull(),
+    status: documentStatus('status').notNull().default('pending'),
+    reviewNote: text('review_note'),
+    reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  table => [index('documents_organisation_idx').on(table.organisationId), index('documents_status_idx').on(table.status)]
 )
 
 export type User = typeof users.$inferSelect

@@ -1,7 +1,7 @@
 import { and, count, desc, eq, gt, ilike, isNull, or, sql, type SQL } from 'drizzle-orm'
 import type { z } from 'zod'
 import { db } from '../../db/client.js'
-import { countries, organisationInvitations, organisationMembers, organisations, users, type Organisation, type User } from '../../db/schema.js'
+import { countries, documents, organisationInvitations, organisationMembers, organisations, users, type Organisation, type User } from '../../db/schema.js'
 import { randomToken, sha256 } from '../../lib/crypto.js'
 import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
 import { paged } from '../../lib/pagination.js'
@@ -98,6 +98,8 @@ export async function submitForVerification(userId: string, id: string) {
   if (organisation.verificationStatus === 'verified') throw conflict('ALREADY_VERIFIED', 'This business is already verified.')
   if (organisation.verificationStatus === 'pending') throw conflict('ALREADY_SUBMITTED', 'This business is already waiting for review.')
   if (!organisation.registrationNumber) throw badRequest('REGISTRATION_NUMBER_REQUIRED', 'Add your business registration number before submitting for verification.')
+  const [{ total: uploaded }] = await db.select({ total: count() }).from(documents).where(eq(documents.organisationId, id))
+  if (!uploaded) throw badRequest('DOCUMENTS_REQUIRED', 'Upload at least one business document, such as your registration certificate, before submitting for verification.')
   const [updated] = await db.update(organisations).set({ verificationStatus: 'pending', verificationNote: null }).where(eq(organisations.id, id)).returning()
   return organisationView(updated)
 }
@@ -230,12 +232,28 @@ export async function listOrganisations(filters: z.infer<typeof listOrganisation
 export async function getOrganisationForAdmin(id: string) {
   const [organisation] = await db.select().from(organisations).where(eq(organisations.id, id)).limit(1)
   if (!organisation) throw notFound('Business')
-  const members = await db
-    .select({ userId: users.id, email: users.email, firstName: users.firstName, lastName: users.lastName, role: organisationMembers.role, status: users.status })
-    .from(organisationMembers)
-    .innerJoin(users, eq(users.id, organisationMembers.userId))
-    .where(eq(organisationMembers.organisationId, id))
-  return { organisation: organisationView(organisation), members }
+  const [members, files] = await Promise.all([
+    db
+      .select({ userId: users.id, email: users.email, firstName: users.firstName, lastName: users.lastName, role: organisationMembers.role, status: users.status, joinedAt: organisationMembers.createdAt })
+      .from(organisationMembers)
+      .innerJoin(users, eq(users.id, organisationMembers.userId))
+      .where(eq(organisationMembers.organisationId, id)),
+    db
+      .select({ id: documents.id, kind: documents.kind, fileName: documents.fileName, mimeType: documents.mimeType, sizeBytes: documents.sizeBytes, status: documents.status, reviewNote: documents.reviewNote, createdAt: documents.createdAt })
+      .from(documents)
+      .where(eq(documents.organisationId, id))
+      .orderBy(desc(documents.createdAt))
+  ])
+  return { organisation: organisationView(organisation), members, documents: files }
+}
+
+export async function removeMemberAsAdmin(id: string, userId: string) {
+  const [removed] = await db
+    .delete(organisationMembers)
+    .where(and(eq(organisationMembers.organisationId, id), eq(organisationMembers.userId, userId)))
+    .returning({ userId: organisationMembers.userId })
+  if (!removed) throw notFound('Member of this business')
+  return getOrganisationForAdmin(id)
 }
 
 export async function reviewOrganisation(reviewer: User, id: string, decision: 'verify' | 'reject', note?: string) {

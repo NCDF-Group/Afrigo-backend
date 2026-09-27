@@ -117,6 +117,13 @@ adminOrganisationsRouter.post('/:id/review', requireStaff('compliance:review'), 
   response.json(result)
 })
 
+adminOrganisationsRouter.delete('/:id/members/:userId', requireStaff('users:manage'), async (request, response) => {
+  const { id, userId } = parse(memberParams, request.params)
+  const result = await service.removeMemberAsAdmin(id, userId)
+  await audit({ actorId: request.auth!.user.id, action: 'admin.organisation.member_removed', targetType: 'organisation', targetId: id, metadata: { userId }, request })
+  response.json(result)
+})
+
 adminOrganisationsRouter.post('/:id/status', requireStaff('users:manage'), async (request, response) => {
   const { id } = parse(organisationParams, request.params)
   const input = parse(statusSchema, request.body)

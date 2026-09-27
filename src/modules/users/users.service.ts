@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 import type { z } from 'zod'
 import { db } from '../../db/client.js'
 import { sessions, users, type User } from '../../db/schema.js'
@@ -23,13 +23,25 @@ export async function deleteAccount(user: User, password: string | undefined) {
       and (select count(*) from organisation_members x where x.organisation_id = m.organisation_id and x.role = 'administrator') = 1
     limit 1`)
   if (soleAdministrator) throw conflict('LAST_ADMINISTRATOR', `Make someone else an administrator of ${soleAdministrator.name} before deleting your account.`)
-  await logoutEverywhere(user.id)
-  await db.execute(sql`delete from organisation_members where user_id = ${user.id}`)
+  await anonymise(user.id)
+}
+
+async function anonymise(id: string) {
+  await logoutEverywhere(id)
+  await db.execute(sql`delete from organisation_members where user_id = ${id}`)
   await db
     .update(users)
-    .set({ status: 'deleted', email: `deleted+${user.id}@afrigo.invalid`, firstName: 'Deleted', lastName: 'member', phone: null, avatarUrl: null, passwordHash: null, googleId: null, staffRole: null })
-    .where(eq(users.id, user.id))
+    .set({ status: 'deleted', email: `deleted+${id}@afrigo.invalid`, firstName: 'Deleted', lastName: 'member', phone: null, avatarUrl: null, passwordHash: null, googleId: null, staffRole: null, mfaSecret: null, mfaPendingSecret: null, mfaEnabledAt: null, mfaRecoveryCodes: [] })
+    .where(eq(users.id, id))
 }
+
+const membershipsSql = sql<{ organisationId: string; name: string; role: string; verificationStatus: string }[]>`coalesce((
+  select json_agg(json_build_object('organisationId', o.id, 'name', o.name, 'role', m.role, 'verificationStatus', o.verification_status) order by m.created_at)
+  from organisation_members m join organisations o on o.id = m.organisation_id
+  where m.user_id = ${users.id}
+), '[]'::json)`
+
+const JOINED_DAYS = { '1d': 1, '7d': 7, '30d': 30 } as const
 
 const adminView = (user: User) => ({ ...publicUser(user), platform: user.platform, appVersion: user.appVersion, statusReason: user.statusReason, lastLoginAt: user.lastLoginAt, lastActiveAt: user.lastActiveAt, lockedUntil: user.lockedUntil })
 
@@ -40,13 +52,14 @@ export async function listUsers(filters: z.infer<typeof listUsersSchema>) {
     conditions.push(or(ilike(users.email, term), ilike(users.firstName, term), ilike(users.lastName, term), ilike(sql`${users.firstName} || ' ' || ${users.lastName}`, term))!)
   }
   if (filters.country) conditions.push(eq(users.country, filters.country))
-  if (filters.status) conditions.push(eq(users.status, filters.status))
+  conditions.push(filters.status ? eq(users.status, filters.status) : ne(users.status, 'deleted'))
+  if (filters.joined) conditions.push(sql`${users.createdAt} > now() - ${`${JOINED_DAYS[filters.joined]} days`}::interval`)
   if (filters.platform) conditions.push(eq(users.platform, filters.platform))
   if (filters.verified) conditions.push(filters.verified === 'true' ? isNotNull(users.emailVerifiedAt) : isNull(users.emailVerifiedAt))
   const where = and(...conditions)
   const [rows, [{ total }]] = await Promise.all([
     db
-      .select()
+      .select({ user: users, organisations: membershipsSql })
       .from(users)
       .where(where)
       .orderBy(desc(users.createdAt))
@@ -54,17 +67,22 @@ export async function listUsers(filters: z.infer<typeof listUsersSchema>) {
       .offset((filters.page - 1) * filters.pageSize),
     db.select({ total: count() }).from(users).where(where)
   ])
-  return paged(rows.map(adminView), total, filters.page, filters.pageSize)
+  return paged(
+    rows.map(row => ({ ...adminView(row.user), organisations: row.organisations })),
+    total,
+    filters.page,
+    filters.pageSize
+  )
 }
 
 export async function getUser(id: string) {
-  const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1)
-  if (!user) throw notFound('Member')
+  const [row] = await db.select({ user: users, organisations: membershipsSql }).from(users).where(eq(users.id, id)).limit(1)
+  if (!row) throw notFound('Member')
   const activeSessions = await db
     .select({ id: sessions.id, platform: sessions.platform, createdAt: sessions.createdAt, expiresAt: sessions.expiresAt })
     .from(sessions)
     .where(and(eq(sessions.userId, id), isNull(sessions.revokedAt), sql`${sessions.expiresAt} > now()`))
-  return { user: adminView(user), sessions: activeSessions }
+  return { user: { ...adminView(row.user), organisations: row.organisations }, sessions: activeSessions }
 }
 
 export async function applyAdminAction(actor: User, id: string, input: z.infer<typeof adminActionSchema>) {
@@ -86,6 +104,9 @@ export async function applyAdminAction(actor: User, id: string, input: z.infer<t
     case 'verify-email':
       await db.update(users).set({ emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, now())` }).where(eq(users.id, id))
       break
+    case 'delete':
+      await anonymise(id)
+      return { user: null, sessions: [] }
     case 'reset-mfa':
       await db.update(users).set({ mfaSecret: null, mfaPendingSecret: null, mfaEnabledAt: null, mfaLastStep: null, mfaRecoveryCodes: [] }).where(eq(users.id, id))
       await logoutEverywhere(id)
