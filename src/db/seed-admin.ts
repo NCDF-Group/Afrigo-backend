@@ -19,7 +19,8 @@ try {
     console.log(`Created super administrator ${email}.`)
   }
 } catch (error) {
-  console.error(error instanceof Error ? error.message : error)
+  const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : null
+  console.error(cause ?? (error instanceof Error ? error.message : error))
   process.exitCode = 1
 } finally {
   await sql.end()
