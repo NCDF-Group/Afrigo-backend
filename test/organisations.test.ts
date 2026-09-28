@@ -29,6 +29,14 @@ describe('business profiles', () => {
     expect(me.body.organisations).toEqual([expect.objectContaining({ name: 'Okafor Agro Ltd', role: 'administrator' })])
   })
 
+  it('gives a member without a country the country of their first business', async () => {
+    const response = await api().post('/api/v1/auth/register').send({ firstName: 'Kwame', lastName: 'Mensah', email: 'kwame@example.com', password: 'Password123', platform: 'web' })
+    const token = response.body.tokens.accessToken
+    expect(response.body.user.country).toBeNull()
+    await api().post('/api/v1/organisations').set(bearer(token)).send({ ...business, country: 'GH' })
+    expect((await api().get('/api/v1/auth/me').set(bearer(token))).body.user.country).toBe('gh')
+  })
+
   it('only accepts businesses in enabled countries', async () => {
     const { tokens } = await register()
     const response = await api().post('/api/v1/organisations').set(bearer(tokens.accessToken)).send({ ...business, country: 'KE' })
@@ -161,7 +169,10 @@ describe('admin member management', () => {
   })
 
   it('reports platform statistics', async () => {
-    await owner()
+    const { token } = await owner()
+    await sql`update users set country = null`
+    const me = await api().get('/api/v1/auth/me').set(bearer(token))
+    expect(me.body.user.country).toBeNull()
     const support = await createStaff('support@afrigo.africa', 'support_agent')
     const stats = await api().get('/api/v1/admin/stats').set(bearer(support.tokens.accessToken))
     expect(stats.status).toBe(200)

@@ -27,7 +27,7 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({ email, password: z.string().min(1, 'Enter your password.').max(128), platform })
 
-export const googleSchema = z.object({ idToken: z.string().min(20).max(4096), platform })
+export const googleSchema = z.object({ idToken: z.string().min(20).max(4096), country: z.string().trim().length(2).toLowerCase().optional(), platform })
 
 export const refreshSchema = z.object({ refreshToken: z.string().min(20).max(512) })
 

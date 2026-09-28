@@ -22,6 +22,13 @@
       "when": 1790528593502,
       "tag": "0002_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790591767664,
+      "tag": "0003_backfill_member_country",
+      "breakpoints": true
     }
   ]
 }

@@ -71,6 +71,7 @@ export async function createOrganisation(user: User, input: z.infer<typeof creat
       .values({ ...input, types: [...new Set(input.types)], createdBy: user.id })
       .returning()
     await tx.insert(organisationMembers).values({ organisationId: organisation.id, userId: user.id, role: 'administrator' })
+    await tx.update(users).set({ country: organisation.country }).where(and(eq(users.id, user.id), isNull(users.country)))
     return { organisation: organisationView(organisation), role: 'administrator' as const }
   })
 }
@@ -196,6 +197,7 @@ export async function acceptInvitation(user: User, token: string) {
   await db.transaction(async tx => {
     await tx.update(organisationInvitations).set({ acceptedAt: new Date() }).where(eq(organisationInvitations.id, invitation.id))
     await tx.insert(organisationMembers).values({ organisationId: invitation.organisationId, userId: user.id, role: invitation.role }).onConflictDoNothing()
+    await tx.execute(sql`update users set country = (select country from organisations where id = ${invitation.organisationId}) where id = ${user.id} and country is null`)
   })
   return getOrganisation(user.id, invitation.organisationId)
 }

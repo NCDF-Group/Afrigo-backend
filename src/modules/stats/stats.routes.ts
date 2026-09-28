@@ -37,10 +37,13 @@ statsRouter.get('/', requireStaff('analytics:read'), async (_request, response) 
         coalesce(o.pending, 0)::int as "pendingBusinesses"
       from countries c
       left join (
-        select lower(country) as country, count(*) as users,
-          count(*) filter (where created_at > now() - interval '7 days') as new_users,
-          count(*) filter (where last_active_at > now() - interval '24 hours') as active
-        from users where staff_role is null and status <> 'deleted' group by 1
+        select lower(coalesce(m.country, (
+            select o.country from organisation_members om join organisations o on o.id = om.organisation_id
+            where om.user_id = m.id order by om.created_at limit 1
+          ))) as country, count(*) as users,
+          count(*) filter (where m.created_at > now() - interval '7 days') as new_users,
+          count(*) filter (where m.last_active_at > now() - interval '24 hours') as active
+        from users m where m.staff_role is null and m.status <> 'deleted' group by 1
       ) u on u.country = lower(c.iso2)
       left join (
         select lower(country) as country, count(*) as businesses,

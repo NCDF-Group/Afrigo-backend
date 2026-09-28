@@ -248,7 +248,7 @@ export async function login(input: { email: string; password: string; platform?:
   return completeSignIn(user, ctx)
 }
 
-export async function loginWithGoogle(input: { idToken: string; platform?: Platform }, context: ClientContext) {
+export async function loginWithGoogle(input: { idToken: string; country?: string; platform?: Platform }, context: ClientContext) {
   if (!env.GOOGLE_CLIENT_IDS.length) throw new AppError(503, 'GOOGLE_SIGN_IN_UNAVAILABLE', 'Google sign in is not available. Use your email and password.')
   const ctx = { ...context, platform: input.platform ?? context.platform }
   let payload
@@ -277,6 +277,7 @@ export async function loginWithGoogle(input: { idToken: string; platform?: Platf
         firstName: payload.given_name ?? payload.email.split('@')[0],
         lastName: payload.family_name ?? '',
         avatarUrl: payload.picture,
+        country: input.country,
         platform: ctx.platform
       })
       .returning()
